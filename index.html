@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NQ Trader — Šimi's Dashboard</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#00e676">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NQ Trader">
+<link rel="apple-touch-icon" href="./icons/icon-192x192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192x192.png">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #080b0f;
+  --surface: #0f1318;
+  --surface2: #161c24;
+  --border: #1e2730;
+  --border2: #252f3a;
+  --green: #00e676;
+  --green-dim: rgba(0,230,118,0.12);
+  --red: #ff4444;
+  --red-dim: rgba(255,68,68,0.12);
+  --yellow: #ffc107;
+  --yellow-dim: rgba(255,193,7,0.12);
+  --blue: #2196f3;
+  --blue-dim: rgba(33,150,243,0.12);
+  --purple: #9c27b0;
+  --text: #e8edf3;
+  --text2: #7a8a9a;
+  --text3: #4a5a6a;
+  --mono: 'Space Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sidebar {
+  position: fixed;
+  left: 0; top: 0; bottom: 0;
+  width: 56px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0;
+  gap: 4px;
+  z-index: 100;
+}
+.logo {
+  width: 36px; height: 36px;
+  background: var(--green);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 20px;
+}
+.nav-btn {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  color: var(--text3);
+  position: relative;
+  user-select: none;
+}
+.nav-btn:hover { background: var(--surface2); color: var(--text); }
+.nav-btn.active { background: var(--green-dim); border-color: var(--green); color: var(--green); }
+.nav-btn .tooltip {
+  position: absolute;
+  left: 52px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  font-family: var(--sans);
+}
+.nav-btn:hover .tooltip { opacity: 1; }
+
+.main {
+  margin-left: 56px;
+  min-height: 100vh;
+  position: relative;
+  z-index: 1;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(14px + env(safe-area-inset-top)) 20px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: linear-gradient(to bottom, rgba(15,19,24,0.78), rgba(15,19,24,0.58));
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+.topbar-left, .topbar-right { display: flex; align-items: center; gap: 12px; }
+.page-title { font-family: var(--mono); font-size: 13px; color: var(--text); }
+.page-sub { font-size: 11px; color: var(--text2); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.time-display { font-family: var(--mono); font-size: 12px; color: var(--text2); }
+.session-badge {
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.5px;
+}
+.session-badge.active { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+.session-badge.inactive { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+
+.page { display: none; padding: 24px 20px 80px; }
+.page.active { display: block; animation: fadeIn 0.2s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 10px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 10px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.card-sm { padding: 12px 14px; }
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 10px;
+}
+.card-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: var(--mono);
+}
+.card-action { font-size: 10px; color: var(--text3); cursor: pointer; }
+.card-action:hover { color: var(--text2); }
+.stat-val { font-family: var(--mono); font-size: 22px; font-weight: 700; line-height: 1.1; }
+.stat-label { font-size: 10px; color: var(--text2); margin-top: 4px; }
+.green { color: var(--green); }
+.red { color: var(--red); }
+.yellow { color: var(--yellow); }
+.blue { color: var(--blue); }
+
+.check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+  border-radius: 4px;
+}
+.check-item:last-child { border-bottom: none; }
+.check-item:hover { background: var(--surface2); padding-left: 6px; }
+.check-box {
+  width: 18px; height: 18px;
+  border: 1.5px solid var(--border2);
+  border-radius: 4px;
+  flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  transition: all 0.15s;
+  margin-top: 1px;
+}
+.check-box.checked { background: var(--green); border-color: var(--green); color: #000; }
+.check-text { font-size: 12px; color: var(--text); line-height: 1.5; }
+.check-text.checked-text { color: var(--text3); text-decoration: line-through; }
+
+.rule-item, .flow-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+.flow-step { align-items: flex-start; border-left: 3px solid var(--border2); transition: all 0.15s; }
+.flow-step:hover { border-left-color: var(--green); background: #0f1a12; }
+.flow-step.go { border-left-color: var(--green); }
+.flow-step.wait { border-left-color: var(--yellow); }
+.flow-step.stop { border-left-color: var(--red); }
+.flow-num {
+  width: 22px; height: 22px;
+  background: var(--border2);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px;
+  font-family: var(--mono);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.rule-icon { font-size: 20px; flex-shrink: 0; }
+.rule-title, .flow-title, .psych-title { font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+.rule-desc, .flow-desc, .psych-body { font-size: 11px; color: var(--text2); line-height: 1.6; }
+
+.trade-row {
+  display: grid;
+  grid-template-columns: 90px 60px 1fr 80px 90px 60px;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+  font-size: 11px;
+}
+.trade-row.header { color: var(--text2); font-size: 10px; font-family: var(--mono); padding-bottom: 6px; }
+.trade-row:last-child { border-bottom: none; }
+.dir-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-family: var(--mono);
+  font-weight: 700;
+  display: inline-block;
+}
+.dir-badge.long { background: var(--green-dim); color: var(--green); }
+.dir-badge.short { background: var(--red-dim); color: var(--red); }
+.pnl-pos, .pnl-neg { font-family: var(--mono); font-size: 11px; }
+.pnl-pos { color: var(--green); }
+.pnl-neg { color: var(--red); }
+.rule-ok { color: var(--green); font-size: 14px; }
+.rule-bad { color: var(--red); font-size: 14px; }
+
+.psych-card { border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+.psych-card.danger { background: var(--red-dim); border: 1px solid rgba(255,68,68,0.25); }
+.psych-card.tip { background: var(--green-dim); border: 1px solid rgba(0,230,118,0.25); }
+.psych-card.info { background: var(--blue-dim); border: 1px solid rgba(33,150,243,0.25); }
+
+.progress-bar { height: 4px; background: var(--border2); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+
+.input-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+.input-label { font-size: 10px; color: var(--text2); width: 120px; flex-shrink: 0; font-family: var(--mono); }
+input[type="number"], input[type="text"], input[type="date"], select, textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: var(--sans);
+  outline: none;
+  flex: 1;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(0,230,118,0.08); }
+select option { background: var(--surface2); }
+textarea { resize: vertical; min-height: 70px; }
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--sans);
+  transition: all 0.15s;
+}
+.btn-green { background: var(--green); color: #000; }
+.btn-green:hover { background: #00ff8a; }
+.btn-red { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+.btn-ghost { background: var(--surface2); color: var(--text2); border: 1px solid var(--border2); }
+.btn-ghost:hover { border-color: var(--text2); color: var(--text); }
+
+.adx-meter {
+  height: 8px;
+  background: linear-gradient(to right, var(--red) 0%, var(--yellow) 40%, var(--green) 70%);
+  border-radius: 4px;
+  position: relative;
+  margin: 8px 0;
+}
+.adx-needle {
+  position: absolute;
+  top: -4px;
+  width: 4px;
+  height: 16px;
+  background: white;
+  border-radius: 2px;
+  transform: translateX(-50%);
+  transition: left 0.5s ease;
+  box-shadow: 0 0 6px rgba(255,255,255,0.5);
+}
+.adx-labels { display: flex; justify-content: space-between; font-size: 9px; color: var(--text3); font-family: var(--mono); margin-top: 4px; }
+.chart-wrap { position: relative; min-height: 130px; }
+canvas { width: 100% !important; }
+.week-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.day-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 8px;
+  text-align: center;
+  transition: all 0.15s;
+}
+.day-card.today { border-color: var(--green); background: var(--green-dim); }
+.day-name { font-size: 9px; color: var(--text2); font-family: var(--mono); margin-bottom: 4px; }
+.day-pnl { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.day-trades { font-size: 9px; color: var(--text3); margin-top: 2px; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+.section-title { font-size: 10px; font-weight: 700; color: var(--text2); text-transform: uppercase; letter-spacing: 1.5px; font-family: var(--mono); margin-bottom: 10px; }
+.alert { padding: 10px 14px; border-radius: 8px; font-size: 11px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.alert.red { background: var(--red-dim); border: 1px solid rgba(255,68,68,0.3); color: var(--red); }
+.alert.green { background: var(--green-dim); border: 1px solid rgba(0,230,118,0.3); color: var(--green); }
+.alert.yellow { background: var(--yellow-dim); border: 1px solid rgba(255,193,7,0.3); color: var(--yellow); }
+.install-banner {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--green);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(0,230,118,0.15);
+  min-width: 280px;
+  max-width: calc(100vw - 32px);
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp { from{transform:translateX(-50%) translateY(20px);opacity:0} to{transform:translateX(-50%) translateY(0);opacity:1} }
+.install-banner .ib-icon { font-size: 24px; flex-shrink: 0; }
+.install-banner .ib-text { flex: 1; }
+.install-banner .ib-title { font-size: 12px; font-weight: 700; color: var(--text); }
+.install-banner .ib-sub { font-size: 10px; color: var(--text2); margin-top: 2px; }
+.install-banner .ib-btn { padding: 6px 14px; border-radius: 6px; background: var(--green); color: #000; border: none; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.install-banner .ib-close { color: var(--text3); cursor: pointer; font-size: 16px; flex-shrink: 0; padding: 4px; }
+.install-banner .ib-close:hover { color: var(--text); }
+.muted { color: var(--text3); }
+.small-note { font-size: 11px; color: var(--text2); line-height: 1.7; }
+
+@media(max-width:900px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media(max-width:600px) {
+  .grid-2,.grid-3,.grid-4 { grid-template-columns:1fr; }
+  .trade-row { grid-template-columns: 70px 50px 1fr 70px; }
+  .trade-row .col-hide { display:none; }
+  .week-grid { grid-template-columns: repeat(2, 1fr); }
+  .install-banner { min-width: auto; width: calc(100vw - 24px); }
+}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">NQ</div>
+  <div class="nav-btn active" onclick="goPage('dashboard')" id="nav-dashboard">📊<span class="tooltip">Dashboard</span></div>
+  <div class="nav-btn" onclick="goPage('setup')" id="nav-setup">📐<span class="tooltip">Setup & Pravidlá</span></div>
+  <div class="nav-btn" onclick="goPage('checklist')" id="nav-checklist">✅<span class="tooltip">Checklist</span></div>
+  <div class="nav-btn" onclick="goPage('trades')" id="nav-trades">📋<span class="tooltip">Trade Log</span></div>
+  <div class="nav-btn" onclick="goPage('psychology')" id="nav-psychology">🧠<span class="tooltip">Psychológia</span></div>
+  <div class="nav-btn" onclick="goPage('review')" id="nav-review">🗓️<span class="tooltip">Týždenný Review</span></div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="status-dot"></div>
+      <div>
+        <div class="page-title" id="page-title">DASHBOARD</div>
+        <div class="page-sub">NQ / US100 · M5/M15 · Momentum</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="time-display" id="clock">--:--:--</div>
+      <div class="session-badge" id="session-badge">--</div>
+    </div>
+  </div>
+
+  <div class="page active" id="page-dashboard">
+    <div id="daily-alert"></div>
+    <div class="grid-4">
+      <div class="card card-sm">
+        <div class="card-title">Týždenný P&amp;L</div>
+        <div class="stat-val green" id="week-pnl">+0€</div>
+        <div class="stat-label">Tento týždeň</div>
+        <div class="progress-bar"><div class="progress-fill" id="week-bar" style="background:var(--green);width:0%"></div></div>
+      </div>
+      <div class="card card-sm">
+        <div class="card-title">Win Rate</div>
+        <div class="stat-val" id="winrate-display">0%</div>
+        <div class="stat-label">Celkovo</div>
+        <div class="progress-bar"><div class="progress-fill" id="wr-bar" style="background:var(--green);width:0%"></div></div>
+      </div>
+      <div class="card card-sm">
+        <div class="card-title">Dnešné obchody</div>
+        <div class="stat-val" id="today-trades">0 / 3</div>
+        <div class="stat-label">Max 3 denne</div>
+        <div class="progress-bar"><div class="progress-fill" id="trade-bar" style="background:var(--yellow);width:0%"></div></div>
+      </div>
+      <div class="card card-sm">
+        <div class="card-title">Denný DD</div>
+        <div class="stat-val" id="daily-dd">0%</div>
+        <div class="stat-label">Limit: 2%</div>
+        <div class="progress-bar"><div class="progress-fill" id="dd-bar" style="background:var(--green);width:0%"></div></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">ADX Momentum Filter</div>
+          <div class="card-action" onclick="refreshADXStatus()">↻ Update</div>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px">
+          <div class="stat-val" id="adx-val" style="font-size:28px">--</div>
+          <div id="adx-status" style="font-size:11px;font-family:var(--mono)"></div>
+        </div>
+        <div class="adx-meter"><div class="adx-needle" id="adx-needle" style="left:50%"></div></div>
+        <div class="adx-labels"><span>0 Range</span><span>20</span><span>25 Trend</span><span>40</span><span>50+</span></div>
+        <div style="margin-top:10px">
+          <div class="input-row">
+            <div class="input-label">Zadaj ADX:</div>
+            <input type="number" id="adx-input" placeholder="napr. 28" min="0" max="100" style="max-width:100px">
+            <button class="btn btn-green" onclick="setADX()">OK</button>
+          </div>
+          <div class="small-note">ADX sa ukladá automaticky, aby zostal po refreshi.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">P&amp;L Krivka (€)</div></div>
+        <div class="chart-wrap"><canvas id="pnlChart" height="130"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Týždenný prehľad</div></div>
+      <div class="week-grid" id="week-grid"></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-setup">
+    <div class="section-title">✅ Vstupuj — keď platí všetko</div>
+    <div class="flow-step go"><div class="flow-num" style="background:rgba(0,230,118,0.2);color:var(--green)">1</div><div><div class="flow-title green">Potvrď trend na H1/H4</div><div class="flow-desc">HH + HL = uptrend · LH + LL = downtrend · Ak je range, neobchoduješ.</div></div></div>
+    <div class="flow-step go"><div class="flow-num" style="background:rgba(0,230,118,0.2);color:var(--green)">2</div><div><div class="flow-title green">ADX &gt; 25</div><div class="flow-desc">Ak ADX &lt; 20 → koniec, nič nerobíš. 20–25 = opatrne.</div></div></div>
+    <div class="flow-step wait"><div class="flow-num" style="background:rgba(255,193,7,0.2);color:var(--yellow)">3</div><div><div class="flow-title yellow">Čakaj na pullback k VWAP / 20 EMA</div><div class="flow-desc">Nenaháňaj pohyb. Po veľkej sviečke čakáš na návrat.</div></div></div>
+    <div class="flow-step go"><div class="flow-num" style="background:rgba(0,230,118,0.2);color:var(--green)">4</div><div><div class="flow-title green">2 silné potvrdzujúce sviečky</div><div class="flow-desc">Vstup na close 2. sviečky, nie do stredu chaosu.</div></div></div>
+    <div class="flow-step go"><div class="flow-num" style="background:rgba(0,230,118,0.2);color:var(--green)">5</div><div><div class="flow-title green">SL a TP nastav pred vstupom</div><div class="flow-desc">SL pod posledné low / nad high · TP = 2R · 1R = partial + BE.</div></div></div>
+
+    <div class="divider"></div>
+    <div class="section-title">❌ Nevstupuj — ak platí čokoľvek</div>
+    <div class="flow-step stop"><div class="flow-num" style="background:rgba(255,68,68,0.2);color:var(--red)">✕</div><div><div class="flow-title red">Po veľkej sviečke (chase)</div><div class="flow-desc">Cena ušla → čakáš na pullback. Ďalší pohyb vždy príde.</div></div></div>
+    <div class="flow-step stop"><div class="flow-num" style="background:rgba(255,68,68,0.2);color:var(--red)">✕</div><div><div class="flow-title red">V range (ADX &lt; 20)</div><div class="flow-desc">Tvoj setup funguje len v trende.</div></div></div>
+    <div class="flow-step stop"><div class="flow-num" style="background:rgba(255,68,68,0.2);color:var(--red)">✕</div><div><div class="flow-title red">Si “100% istý”</div><div class="flow-desc">Overconfidence = zníž lot aspoň na 50 %.</div></div></div>
+    <div class="flow-step stop"><div class="flow-num" style="background:rgba(255,68,68,0.2);color:var(--red)">✕</div><div><div class="flow-title red">30 min pred správou</div><div class="flow-desc">NFP, CPI, Fed — neotváraj 30 min pred ani po.</div></div></div>
+    <div class="flow-step stop"><div class="flow-num" style="background:rgba(255,68,68,0.2);color:var(--red)">✕</div><div><div class="flow-title red">2 straty dnes → stop</div><div class="flow-desc">Zavri PC. Trh tu bude zajtra.</div></div></div>
+    <div class="flow-step stop"><div class="flow-num" style="background:rgba(255,68,68,0.2);color:var(--red)">✕</div><div><div class="flow-title red">Po 17:30 SEČ</div><div class="flow-desc">Po hlavnom pohybe klesá kvalita setupov.</div></div></div>
+
+    <div class="divider"></div>
+    <div class="section-title">📐 Risk kalkulátor</div>
+    <div class="card">
+      <div class="grid-2">
+        <div>
+          <div class="input-row"><div class="input-label">Účet (€):</div><input type="number" id="calc-account" value="10000" oninput="calcRisk()"></div>
+          <div class="input-row"><div class="input-label">Risk % / trade:</div><input type="number" id="calc-risk" value="1" step="0.1" oninput="calcRisk()"></div>
+          <div class="input-row"><div class="input-label">SL (body NQ):</div><input type="number" id="calc-sl" value="60" oninput="calcRisk()"></div>
+          <div class="small-note">Výpočet sizingu je zjednodušený. Pred live tradingom si ho porovnaj s broker platformou.</div>
+        </div>
+        <div style="background:var(--surface2);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px">
+          <div><div style="font-size:10px;color:var(--text2)">Max risk / trade</div><div class="stat-val green" id="res-risk" style="font-size:20px">100€</div></div>
+          <div><div style="font-size:10px;color:var(--text2)">TP cieľ (+2R)</div><div class="stat-val blue" id="res-tp" style="font-size:16px">+200€</div></div>
+          <div><div style="font-size:10px;color:var(--text2)">Max denná strata (2%)</div><div class="stat-val red" id="res-daily" style="font-size:16px">-200€</div></div>
+          <div><div style="font-size:10px;color:var(--text2)">Orientačný size factor</div><div class="stat-val" id="res-size" style="font-size:16px">1.67×</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page" id="page-checklist">
+    <div class="section-title">☀️ Pred obchodovaním</div>
+    <div class="card" style="margin-bottom:10px">
+      <div id="pre-checks"></div>
+      <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:11px;color:var(--text2)">Hotovo: <span id="pre-count" class="green">0/6</span></div>
+        <button class="btn btn-ghost" onclick="resetChecks('pre')">Reset</button>
+      </div>
+    </div>
+
+    <div class="section-title">📋 Po každom obchode (60 sekúnd)</div>
+    <div class="card" style="margin-bottom:10px">
+      <div id="post-checks"></div>
+      <div style="margin-top:10px;padding:10px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text2);line-height:1.7">
+        💡 <span class="green">4–6 ✅</span> = obchodoval si správne, aj keď bol trade stratový.<br>
+        💡 <span class="red">menej ako 4 ✅</span> = problém je v exekúcii, nie v trhu.
+      </div>
+      <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:11px;color:var(--text2)">Skóre: <span id="post-count" class="green">0/6</span></div>
+        <button class="btn btn-ghost" onclick="resetChecks('post')">Reset</button>
+      </div>
+    </div>
+
+    <div class="section-title">📌 Tvoje osobné pravidlá</div>
+    <div class="rule-item"><span class="rule-icon">🎯</span><div><div class="rule-title">Fixný lot — každý deň rovnaký</div><div class="rule-desc">Žiadne improvizácie. Konzistencia = dlhodobý profit.</div></div></div>
+    <div class="rule-item"><span class="rule-icon">⏰</span><div><div class="rule-title">Obchoduj len 15:30–17:30 SEČ/SELČ</div><div class="rule-desc">NY open má najčistejšie pohyby.</div></div></div>
+    <div class="rule-item"><span class="rule-icon">📉</span><div><div class="rule-title">2% denný strop → PC vypnutý</div><div class="rule-desc">Bez diskusie. Bez výnimiek.</div></div></div>
+    <div class="rule-item"><span class="rule-icon">🧘</span><div><div class="rule-title">Partial TP na 1R → BE stop</div><div class="rule-desc">Menej stresu, lepší management zvyšku pozície.</div></div></div>
+  </div>
+
+  <div class="page" id="page-trades">
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-header"><div class="card-title">Nový obchod</div></div>
+      <div class="grid-2">
+        <div>
+          <div class="input-row"><div class="input-label">Dátum:</div><input type="date" id="t-date"></div>
+          <div class="input-row"><div class="input-label">Smer:</div><select id="t-dir"><option value="LONG">LONG</option><option value="SHORT">SHORT</option></select></div>
+          <div class="input-row"><div class="input-label">Vstup:</div><input type="number" id="t-entry" placeholder="19420"></div>
+          <div class="input-row"><div class="input-label">P&amp;L (€):</div><input type="number" id="t-pnl" placeholder="+50 alebo -25"></div>
+        </div>
+        <div>
+          <div class="input-row"><div class="input-label">Bol trend?</div><select id="t-trend"><option value="1">✅ Áno</option><option value="0">❌ Nie</option></select></div>
+          <div class="input-row"><div class="input-label">Pullback?</div><select id="t-pb"><option value="1">✅ Áno</option><option value="0">❌ Nie (chase)</option></select></div>
+          <div class="input-row"><div class="input-label">Fixný lot?</div><select id="t-lot"><option value="1">✅ Áno</option><option value="0">❌ Nie</option></select></div>
+          <div class="input-row"><div class="input-label">Poznámka:</div><input type="text" id="t-note" placeholder="krátka poznámka..."></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+        <button class="btn btn-green" onclick="addTrade()">+ Pridať obchod</button>
+        <button class="btn btn-ghost" onclick="exportTrades()">Export JSON</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Trade história</div>
+        <div style="display:flex;gap:12px;align-items:center">
+          <div class="card-action" onclick="clearTrades()">Vymazať všetko</div>
+        </div>
+      </div>
+      <div class="trade-row header">
+        <span>Dátum</span><span>Smer</span><span>Poznámka</span><span>P&amp;L</span><span class="col-hide">Trend/PB</span><span>Lot</span>
+      </div>
+      <div id="trade-list"><div class="muted" style="font-size:11px;padding:16px 0;text-align:center">Zatiaľ žiadne obchody. Pridaj prvý. 💪</div></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-psychology">
+    <div class="psych-card danger"><div class="psych-title red">💀 Overconfidence — tvoj #1 nepriateľ</div><div class="psych-body">Keď si “100% istý”, mozog vypína risk management. <strong style="color:var(--red)">Pravidlo: čím si istejší, tým menší lot.</strong></div></div>
+    <div class="psych-card danger"><div class="psych-title red">💀 FOMO / Chasing</div><div class="psych-body">Ak si zmeškal pohyb, čakáš na ďalší. Nemusíš byť v každom impulze.</div></div>
+    <div class="psych-card danger"><div class="psych-title red">💀 Emočné obchodovanie po strate</div><div class="psych-body">Po 2 stratách: platforma sa vypína. Nevyjednávaš.</div></div>
+    <div class="divider"></div>
+    <div class="psych-card tip"><div class="psych-title green">✅ Otázka pred vstupom</div><div class="psych-body">Povedz nahlas: <em>„Je tu pullback? Je ADX nad 25? Je to v trende?“</em></div></div>
+    <div class="psych-card tip"><div class="psych-title green">✅ Pravidlo 2 strát</div><div class="psych-body">Nie je to trest. Je to ochrana challenge aj psychiky.</div></div>
+    <div class="psych-card tip"><div class="psych-title green">✅ Partial TP = psychická pohoda</div><div class="psych-body">Na 1R zatvoriť časť a presunúť SL na BE často výrazne zlepší disciplínu.</div></div>
+    <div class="psych-card info"><div class="psych-title blue">💡 Tvoj skutočný edge</div><div class="psych-body">Pri 60 % WR a 1:2 RRR môže byť systém ziskový. Hlavný problém býva exekúcia, nie setup.</div></div>
+
+    <div class="divider"></div>
+    <div class="section-title">🧘 Dnešná nálada pred obchodovaním</div>
+    <div class="card">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Ako sa cítiš? Buď úprimný — ovplyvňuje to tvoje výsledky.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap" id="mood-buttons">
+        <button class="btn btn-ghost" data-mood="😤 Frustrovaný" onclick="setMood(this,'😤 Frustrovaný')">😤 Frustrovaný</button>
+        <button class="btn btn-ghost" data-mood="😰 Nervózny" onclick="setMood(this,'😰 Nervózny')">😰 Nervózny</button>
+        <button class="btn btn-ghost" data-mood="😐 Neutrálny" onclick="setMood(this,'😐 Neutrálny')">😐 Neutrálny</button>
+        <button class="btn btn-ghost" data-mood="😊 V pohode" onclick="setMood(this,'😊 V pohode')">😊 V pohode</button>
+        <button class="btn btn-ghost" data-mood="🔥 Overconfident" onclick="setMood(this,'🔥 Overconfident')">🔥 Overconfident</button>
+      </div>
+      <div id="mood-advice" style="margin-top:12px;display:none" class="alert yellow"></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-review">
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-header"><div class="card-title">📊 Štatistiky tohto týždňa</div></div>
+      <div class="grid-3">
+        <div style="text-align:center;padding:10px"><div class="stat-val green" id="rv-trades">0</div><div class="stat-label">Obchodov</div></div>
+        <div style="text-align:center;padding:10px"><div class="stat-val" id="rv-wr">0%</div><div class="stat-label">Win Rate</div></div>
+        <div style="text-align:center;padding:10px"><div class="stat-val" id="rv-pnl">0€</div><div class="stat-label">P&amp;L</div></div>
+      </div>
+      <div class="chart-wrap"><canvas id="weekChart" height="120"></canvas></div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-header"><div class="card-title">🔍 Nedeľný review</div></div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Koľko obchodov dodržalo všetky pravidlá?</div><input type="text" id="rv-rule-pct" placeholder="napr. 7 z 10" style="width:100%"></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Kde som chaseoval / emočne obchodoval?</div><textarea id="rv-chase" placeholder="Popíš konkrétne situácie..."></textarea></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Čo urobím inak budúci týždeň?</div><textarea id="rv-improve" placeholder="1 konkrétna vec na zlepšenie..."></textarea></div>
+        <div><div style="font-size:11px;color:var(--text2);margin-bottom:4px">Bol lot konzistentný celý týždeň?</div><select id="rv-lot-ok" style="width:100%"><option value="yes">✅ Áno — rovnaký lot každý deň</option><option value="no">❌ Nie — menil som loty</option></select></div>
+        <button class="btn btn-green" onclick="saveReview()">💾 Uložiť review</button>
+      </div>
+    </div>
+
+    <div class="card" id="review-history-card">
+      <div class="card-header"><div class="card-title">📚 História reviewov</div></div>
+      <div id="review-history"><div class="muted" style="font-size:11px;padding:8px 0">Zatiaľ žiadny review. Sprav prvý tento víkend. 💪</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="install-banner" id="install-banner">
+  <div class="ib-icon">📱</div>
+  <div class="ib-text">
+    <div class="ib-title">Pridaj na plochu</div>
+    <div class="ib-sub">Funguje offline · PC, Mac, iPhone, Android</div>
+  </div>
+  <button class="ib-btn" onclick="installApp()">Inštalovať</button>
+  <div class="ib-close" onclick="dismissBanner()">✕</div>
+</div>
+
+<script>
+const STORAGE_KEYS = {
+  trades: 'nq_trades_v2',
+  reviews: 'nq_reviews_v2',
+  adx: 'nq_adx_v2',
+  pre: 'nq_pre_checks_v2',
+  post: 'nq_post_checks_v2',
+  mood: 'nq_mood_v2'
+};
+
+function safeParse(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+let state = {
+  trades: safeParse(STORAGE_KEYS.trades, []),
+  reviews: safeParse(STORAGE_KEYS.reviews, []),
+  adx: safeParse(STORAGE_KEYS.adx, null),
+  mood: localStorage.getItem(STORAGE_KEYS.mood) || '',
+  checks: {
+    pre: safeParse(STORAGE_KEYS.pre, [false,false,false,false,false,false]),
+    post: safeParse(STORAGE_KEYS.post, [false,false,false,false,false,false])
+  }
+};
+
+const PRE_CHECKS = [
+  'Pozrel som H4/H1 — viem, či je trend alebo range',
+  'ADX skontrolovaný (musí byť > 25 pre vstup)',
+  'Označil som VWAP a 20 EMA na grafe',
+  'Skontroloval som správy dnes (NFP, CPI, Fed?)',
+  'Nastavil som denný limit straty (2%)',
+  'Lot je fixný — rovnaký ako vždy'
+];
+const POST_CHECKS = [
+  'Bol trend jasný? (HH/HL alebo LH/LL)',
+  'Čakal som na pullback? (nie chase)',
+  'Mali sme 2 potvrdzujúce sviečky?',
+  'SL a TP boli nastavené pred vstupom?',
+  'Dodržal som fixný lot?',
+  'Neobchodoval som z emócií / FOMO?'
+];
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEYS.trades, JSON.stringify(state.trades));
+  localStorage.setItem(STORAGE_KEYS.reviews, JSON.stringify(state.reviews));
+  localStorage.setItem(STORAGE_KEYS.adx, JSON.stringify(state.adx));
+  localStorage.setItem(STORAGE_KEYS.pre, JSON.stringify(state.checks.pre));
+  localStorage.setItem(STORAGE_KEYS.post, JSON.stringify(state.checks.post));
+  localStorage.setItem(STORAGE_KEYS.mood, state.mood || '');
+}
+
+function todayISO(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+}
+function formatDateSK(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + 'T12:00:00');
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString('sk-SK');
+}
+function startOfWeekMonday(date = new Date()) {
+  const d = new Date(date);
+  d.setHours(0,0,0,0);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+function endOfWeekFriday(date = new Date()) {
+  const start = startOfWeekMonday(date);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 4);
+  end.setHours(23,59,59,999);
+  return end;
+}
+function isSameISODate(a, b) { return a === b; }
+function getTradeDateObj(trade) { return new Date((trade.date || todayISO()) + 'T12:00:00'); }
+function isCurrentWeekTrade(trade) {
+  const d = getTradeDateObj(trade);
+  return d >= startOfWeekMonday() && d <= endOfWeekFriday();
+}
+function clamp(val, min, max) { return Math.min(Math.max(val, min), max); }
+
+function goPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.getElementById('nav-' + id).classList.add('active');
+  const titles = {dashboard:'DASHBOARD',setup:'SETUP & PRAVIDLÁ',checklist:'CHECKLIST',trades:'TRADE LOG',psychology:'PSYCHOLÓGIA',review:'TÝŽDENNÝ REVIEW'};
+  document.getElementById('page-title').textContent = titles[id];
+  if (id === 'dashboard') { initPnLChart(); updateDashboard(); }
+  if (id === 'review') { initWeekChart(); updateReview(); }
+}
+
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+  const totalMin = now.getHours() * 60 + now.getMinutes();
+  const inSession = totalMin >= 15*60+30 && totalMin < 17*60+30;
+  const badge = document.getElementById('session-badge');
+  badge.textContent = inSession ? '🟢 NY OPEN' : '🔴 OFF SESSION';
+  badge.className = 'session-badge ' + (inSession ? 'active' : 'inactive');
+}
+
+function initChecks() {
+  ['pre','post'].forEach(type => {
+    const items = type === 'pre' ? PRE_CHECKS : POST_CHECKS;
+    const container = document.getElementById(type + '-checks');
+    if (!container) return;
+    container.innerHTML = items.map((txt,i) => `
+      <div class="check-item" onclick="toggleCheck('${type}',${i})">
+        <div class="check-box ${state.checks[type][i] ? 'checked' : ''}" id="${type}-box-${i}">${state.checks[type][i] ? '✓' : ''}</div>
+        <div class="check-text ${state.checks[type][i] ? 'checked-text' : ''}" id="${type}-txt-${i}">${txt}</div>
+      </div>
+    `).join('');
+    updateCheckCount(type);
+  });
+}
+function toggleCheck(type, idx) {
+  state.checks[type][idx] = !state.checks[type][idx];
+  saveState();
+  initChecks();
+}
+function updateCheckCount(type) {
+  const done = state.checks[type].filter(Boolean).length;
+  const el = document.getElementById(type + '-count');
+  if (el) el.textContent = `${done}/${state.checks[type].length}`;
+}
+function resetChecks(type) {
+  state.checks[type] = state.checks[type].map(() => false);
+  saveState();
+  initChecks();
+}
+
+function setADX() {
+  const val = parseInt(document.getElementById('adx-input').value, 10);
+  if (Number.isNaN(val) || val < 0 || val > 100) return;
+  state.adx = val;
+  saveState();
+  refreshADXStatus();
+}
+function refreshADXStatus() {
+  const val = state.adx;
+  const status = document.getElementById('adx-status');
+  const valEl = document.getElementById('adx-val');
+  if (val === null || Number.isNaN(val)) {
+    valEl.textContent = '--';
+    status.innerHTML = '<span class="muted">Zadaj aktuálny ADX.</span>';
+    document.getElementById('adx-needle').style.left = '0%';
+    return;
+  }
+  valEl.textContent = val;
+  document.getElementById('adx-needle').style.left = clamp((val / 50) * 100, 0, 100) + '%';
+  if (val >= 25) status.innerHTML = '<span class="green">✅ TREND — môžeš obchodovať</span>';
+  else if (val >= 20) status.innerHTML = '<span class="yellow">⚠️ SLABÝ TREND — buď opatrný</span>';
+  else status.innerHTML = '<span class="red">❌ RANGE — neobchoduj</span>';
+}
+
+function calcRisk() {
+  const acc = parseFloat(document.getElementById('calc-account').value) || 10000;
+  const riskPct = parseFloat(document.getElementById('calc-risk').value) || 1;
+  const sl = parseFloat(document.getElementById('calc-sl').value) || 60;
+  const riskEur = acc * riskPct / 100;
+  const sizeFactor = sl > 0 ? riskEur / sl : 0;
+  document.getElementById('res-risk').textContent = riskEur.toFixed(0) + '€';
+  document.getElementById('res-tp').textContent = '+' + (riskEur * 2).toFixed(0) + '€';
+  document.getElementById('res-daily').textContent = '-' + (acc * 0.02).toFixed(0) + '€';
+  document.getElementById('res-size').textContent = sizeFactor.toFixed(2) + '×';
+  updateDashboard();
+}
+
+function sortTrades() {
+  state.trades.sort((a,b) => {
+    const da = (a.date || '') + '_' + (a.ts || 0);
+    const db = (b.date || '') + '_' + (b.ts || 0);
+    return da.localeCompare(db);
+  });
+}
+function addTrade() {
+  const date = document.getElementById('t-date').value || todayISO();
+  const dir = document.getElementById('t-dir').value;
+  const entry = parseFloat(document.getElementById('t-entry').value) || 0;
+  const pnl = parseFloat(document.getElementById('t-pnl').value);
+  const trend = document.getElementById('t-trend').value === '1';
+  const pb = document.getElementById('t-pb').value === '1';
+  const lot = document.getElementById('t-lot').value === '1';
+  const note = document.getElementById('t-note').value.trim();
+  if (Number.isNaN(pnl)) {
+    alert('Zadaj P&L obchodu.');
+    return;
+  }
+  state.trades.push({ date, dir, entry, pnl, trend, pb, lot, note, ts: Date.now() });
+  sortTrades();
+  saveState();
+  document.getElementById('t-entry').value = '';
+  document.getElementById('t-pnl').value = '';
+  document.getElementById('t-note').value = '';
+  renderTrades();
+  updateDashboard();
+  updateReview();
+}
+function renderTrades() {
+  const el = document.getElementById('trade-list');
+  if (!state.trades.length) {
+    el.innerHTML = '<div class="muted" style="font-size:11px;padding:16px 0;text-align:center">Zatiaľ žiadne obchody. Pridaj prvý. 💪</div>';
+    return;
+  }
+  el.innerHTML = [...state.trades].sort((a,b) => (b.date + '_' + b.ts).localeCompare(a.date + '_' + a.ts)).map(t => `
+    <div class="trade-row">
+      <span style="font-family:var(--mono);font-size:10px;color:var(--text2)">${formatDateSK(t.date)}</span>
+      <span><div class="dir-badge ${t.dir === 'LONG' ? 'long' : 'short'}">${t.dir}</div></span>
+      <span style="font-size:11px;color:var(--text2)">${t.note || '—'}</span>
+      <span class="${t.pnl >= 0 ? 'pnl-pos' : 'pnl-neg'}">${t.pnl >= 0 ? '+' : ''}${t.pnl}€</span>
+      <span class="col-hide">${t.trend ? '<span class="rule-ok">✅</span>' : '<span class="rule-bad">❌</span>'} ${t.pb ? '<span class="rule-ok">✅</span>' : '<span class="rule-bad">❌</span>'}</span>
+      <span>${t.lot ? '<span class="rule-ok">✅</span>' : '<span class="rule-bad">❌</span>'}</span>
+    </div>
+  `).join('');
+}
+function clearTrades() {
+  if (!confirm('Vymazať všetky obchody?')) return;
+  state.trades = [];
+  saveState();
+  renderTrades();
+  updateDashboard();
+  updateReview();
+}
+function exportTrades() {
+  const blob = new Blob([JSON.stringify(state.trades, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `nq-trades-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function setBar(id, pct, color) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.width = clamp(pct, 0, 100) + '%';
+    el.style.background = color;
+  }
+}
+
+function updateDashboard() {
+  const trades = state.trades;
+  const wins = trades.filter(t => t.pnl > 0).length;
+  const total = trades.length;
+  const wr = total ? Math.round((wins / total) * 100) : 0;
+  const weekTrades = trades.filter(isCurrentWeekTrade);
+  const weekPnl = weekTrades.reduce((a,t) => a + t.pnl, 0);
+  const today = todayISO();
+  const todayTrades = trades.filter(t => isSameISODate(t.date, today));
+  const todayLosses = todayTrades.filter(t => t.pnl < 0).length;
+  const todayPnl = todayTrades.reduce((a,t) => a + t.pnl, 0);
+  const acc = parseFloat(document.getElementById('calc-account')?.value) || 10000;
+  const dailyDdPct = Math.max(0, (-todayPnl / acc) * 100);
+
+  document.getElementById('week-pnl').textContent = (weekPnl >= 0 ? '+' : '') + weekPnl.toFixed(0) + '€';
+  document.getElementById('week-pnl').className = 'stat-val ' + (weekPnl >= 0 ? 'green' : 'red');
+  document.getElementById('winrate-display').textContent = wr + '%';
+  document.getElementById('winrate-display').className = 'stat-val ' + (wr >= 55 ? 'green' : wr >= 40 ? 'yellow' : 'red');
+  document.getElementById('today-trades').textContent = todayTrades.length + ' / 3';
+  document.getElementById('daily-dd').textContent = dailyDdPct.toFixed(2) + '%';
+  document.getElementById('daily-dd').className = 'stat-val ' + (dailyDdPct < 1 ? 'green' : dailyDdPct < 2 ? 'yellow' : 'red');
+
+  setBar('week-bar', Math.min(Math.abs(weekPnl) / acc * 300, 100), weekPnl >= 0 ? 'var(--green)' : 'var(--red)');
+  setBar('wr-bar', wr, wr >= 55 ? 'var(--green)' : wr >= 40 ? 'var(--yellow)' : 'var(--red)');
+  setBar('trade-bar', (todayTrades.length / 3) * 100, todayTrades.length < 3 ? 'var(--yellow)' : 'var(--red)');
+  setBar('dd-bar', (dailyDdPct / 2) * 100, dailyDdPct < 1 ? 'var(--green)' : dailyDdPct < 2 ? 'var(--yellow)' : 'var(--red)');
+
+  const alertEl = document.getElementById('daily-alert');
+  if (todayLosses >= 2) {
+    alertEl.innerHTML = '<div class="alert red">🛑 Dosiahol si 2 straty dnes. STOP — zavri platformu a konči na dnes.</div>';
+  } else if (todayTrades.length >= 3) {
+    alertEl.innerHTML = '<div class="alert yellow">⚠️ Dosiahol si max 3 obchody dnes. Žiadny nový vstup.</div>';
+  } else if (state.adx !== null && state.adx < 20) {
+    alertEl.innerHTML = '<div class="alert yellow">⚠️ ADX je pod 20. Pravdepodobne range — nechaj to tak.</div>';
+  } else {
+    alertEl.innerHTML = '';
+  }
+
+  const weekStart = startOfWeekMonday();
+  const dayNames = ['Po','Ut','St','Št','Pi'];
+  const todayDate = new Date();
+  document.getElementById('week-grid').innerHTML = dayNames.map((name, i) => {
+    const day = new Date(weekStart);
+    day.setDate(weekStart.getDate() + i);
+    const iso = todayISO(day);
+    const dayTrades = trades.filter(t => t.date === iso);
+    const pnl = dayTrades.reduce((a,t) => a + t.pnl, 0);
+    const isToday = iso === todayISO(todayDate);
+    return `
+      <div class="day-card ${isToday ? 'today' : ''}">
+        <div class="day-name">${name}</div>
+        <div class="day-pnl ${dayTrades.length ? (pnl >= 0 ? 'green' : 'red') : ''}">${dayTrades.length ? (pnl >= 0 ? '+' : '') + pnl.toFixed(0) + '€' : '—'}</div>
+        <div class="day-trades">${dayTrades.length} tradov</div>
+      </div>`;
+  }).join('');
+
+  updatePnLChart();
+}
+
+let pnlChart = null;
+let weekChart = null;
+function initPnLChart() {
+  if (pnlChart) { updatePnLChart(); return; }
+  const ctx = document.getElementById('pnlChart');
+  if (!ctx) return;
+  pnlChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets: [{
+      data: [], borderColor: '#00e676', backgroundColor: 'rgba(0,230,118,0.08)', borderWidth: 2, pointRadius: 2, fill: true, tension: 0.3
+    }]},
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      scales: {
+        x: { grid: { color: '#1e2730' }, ticks: { color: '#4a5a6a', font: { size: 9 }, maxTicksLimit: 8 } },
+        y: { grid: { color: '#1e2730' }, ticks: { color: '#4a5a6a', font: { size: 9 }, callback: v => v + '€' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+  updatePnLChart();
+}
+function updatePnLChart() {
+  if (!pnlChart) return;
+  let cum = 0;
+  const ordered = [...state.trades].sort((a,b) => (a.date + '_' + a.ts).localeCompare(b.date + '_' + b.ts));
+  const data = [0, ...ordered.map(t => (cum += t.pnl))];
+  const labels = ['Štart', ...ordered.map(t => formatDateSK(t.date))];
+  pnlChart.data.labels = labels;
+  pnlChart.data.datasets[0].data = data;
+  pnlChart.data.datasets[0].borderColor = cum >= 0 ? '#00e676' : '#ff4444';
+  pnlChart.update();
+}
+function initWeekChart() {
+  if (weekChart) { updateReview(); return; }
+  const ctx = document.getElementById('weekChart');
+  if (!ctx) return;
+  weekChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['Pondelok','Utorok','Streda','Štvrtok','Piatok'],
+      datasets: [{ data: [0,0,0,0,0], backgroundColor: 'rgba(0,230,118,0.3)', borderColor: '#00e676', borderWidth: 1, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { grid: { color: '#1e2730' }, ticks: { color: '#4a5a6a', font: { size: 9 } } },
+        y: { grid: { color: '#1e2730' }, ticks: { color: '#4a5a6a', font: { size: 9 }, callback: v => v + '€' } }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+  updateReview();
+}
+
+function updateReview() {
+  const weekTrades = state.trades.filter(isCurrentWeekTrade);
+  const wins = weekTrades.filter(t => t.pnl > 0).length;
+  const total = weekTrades.length;
+  const pnl = weekTrades.reduce((a,t) => a + t.pnl, 0);
+  const wr = total ? Math.round((wins / total) * 100) : 0;
+  const rvt = document.getElementById('rv-trades');
+  const rvw = document.getElementById('rv-wr');
+  const rvp = document.getElementById('rv-pnl');
+  if (rvt) rvt.textContent = total;
+  if (rvw) { rvw.textContent = wr + '%'; rvw.className = 'stat-val ' + (wr >= 55 ? 'green' : wr >= 40 ? 'yellow' : 'red'); }
+  if (rvp) { rvp.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(0) + '€'; rvp.className = 'stat-val ' + (pnl >= 0 ? 'green' : 'red'); }
+
+  const weekStart = startOfWeekMonday();
+  const data = [0,1,2,3,4].map(i => {
+    const d = new Date(weekStart);
+    d.setDate(weekStart.getDate() + i);
+    const iso = todayISO(d);
+    return state.trades.filter(t => t.date === iso).reduce((a,t) => a + t.pnl, 0);
+  });
+  if (weekChart) {
+    weekChart.data.datasets[0].data = data;
+    weekChart.update();
+  }
+  renderReviews();
+}
+
+function saveReview() {
+  const review = {
+    date: todayISO(),
+    rulePct: document.getElementById('rv-rule-pct').value.trim(),
+    chase: document.getElementById('rv-chase').value.trim(),
+    improve: document.getElementById('rv-improve').value.trim(),
+    lotOk: document.getElementById('rv-lot-ok').value,
+    ts: Date.now()
+  };
+  state.reviews.unshift(review);
+  saveState();
+  document.getElementById('rv-rule-pct').value = '';
+  document.getElementById('rv-chase').value = '';
+  document.getElementById('rv-improve').value = '';
+  renderReviews();
+  alert('✅ Review uložený!');
+}
+function renderReviews() {
+  const el = document.getElementById('review-history');
+  if (!el) return;
+  if (!state.reviews.length) {
+    el.innerHTML = '<div class="muted" style="font-size:11px;padding:8px 0">Zatiaľ žiadny review. Sprav prvý tento víkend. 💪</div>';
+    return;
+  }
+  el.innerHTML = state.reviews.slice(0,5).map(r => `
+    <div style="padding:10px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;background:var(--surface2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:12px;flex-wrap:wrap">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text)">${formatDateSK(r.date)}</div>
+        <div style="font-size:10px;color:${r.lotOk === 'yes' ? 'var(--green)' : 'var(--red)'}">${r.lotOk === 'yes' ? '✅ Lot konzistentný' : '❌ Lot nekonzistentný'}</div>
+      </div>
+      ${r.rulePct ? `<div style="font-size:11px;color:var(--text2);margin-bottom:4px">📊 Pravidlá: <span class="green">${r.rulePct}</span></div>` : ''}
+      ${r.chase ? `<div style="font-size:11px;color:var(--text2);margin-bottom:4px">⚠️ Chase / emócie: ${r.chase}</div>` : ''}
+      ${r.improve ? `<div style="font-size:11px;color:var(--blue)">💡 Zlepšenie: ${r.improve}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function setMood(btn, mood) {
+  state.mood = mood;
+  saveState();
+  document.querySelectorAll('#mood-buttons .btn').forEach(b => {
+    b.style.borderColor = '';
+    b.style.color = '';
+  });
+  btn.style.borderColor = 'var(--yellow)';
+  btn.style.color = 'var(--yellow)';
+  const advice = document.getElementById('mood-advice');
+  advice.style.display = 'flex';
+  const advices = {
+    '😤 Frustrovaný': '⚠️ Frustrovaný trader = emočné rozhodnutia. Počkaj 30 min alebo dnes neobchoduj.',
+    '😰 Nervózny': '⚠️ Nervozita = menší lot o 50 %. Nevstupuj do neistých setupov.',
+    '😐 Neutrálny': '✅ Ideálny stav. Dodržuj systém a ber len čisté setupy.',
+    '😊 V pohode': '✅ Skvelý stav. Dôveruj procesu, nie impulzu.',
+    '🔥 Overconfident': '🛑 Nebezpečný stav. Zníž lot a buď dvojnásobne prísny na pravidlá.'
+  };
+  const isGood = mood.includes('Neutrálny') || mood.includes('V pohode');
+  advice.className = 'alert ' + (isGood ? 'green' : mood.includes('Overconfident') ? 'red' : 'yellow');
+  advice.textContent = advices[mood] || '';
+}
+function restoreMood() {
+  if (!state.mood) return;
+  const btn = document.querySelector(`#mood-buttons .btn[data-mood="${CSS.escape(state.mood)}"]`);
+  if (btn) setMood(btn, state.mood);
+}
+
+let deferredPrompt = null;
+function installApp() {
+  const banner = document.getElementById('install-banner');
+  if (!deferredPrompt) {
+    alert('Na iPhone/iPad:\n1. Otvor stránku v Safari\n2. Klikni na Zdieľať\n3. Vyber „Pridať na plochu"\n\nNa Android:\n1. Otvor stránku v Chrome\n2. Menu (⋮) → „Pridať na plochu"');
+    return;
+  }
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(() => {
+    deferredPrompt = null;
+    banner.style.display = 'none';
+  });
+}
+function dismissBanner() {
+  document.getElementById('install-banner').style.display = 'none';
+  localStorage.setItem('nq_install_dismissed', '1');
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  if (!localStorage.getItem('nq_install_dismissed')) {
+    document.getElementById('install-banner').style.display = 'flex';
+  }
+});
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('t-date').value = todayISO();
+  if (state.adx !== null) document.getElementById('adx-input').value = state.adx;
+  updateClock();
+  setInterval(updateClock, 1000);
+  initChecks();
+  renderTrades();
+  calcRisk();
+  refreshADXStatus();
+  initPnLChart();
+  initWeekChart();
+  updateDashboard();
+  updateReview();
+  restoreMood();
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+  }
+
+  setTimeout(() => {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.navigator.standalone;
+    if (isIOS && !isStandalone && !localStorage.getItem('nq_install_dismissed')) {
+      document.getElementById('install-banner').style.display = 'flex';
+    }
+  }, 2500);
+});
+</script>
+</body>
+</html>
