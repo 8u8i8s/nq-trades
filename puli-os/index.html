@@ -1,0 +1,2481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>PULI OS</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#7c3aed">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PULI OS">
+<link rel="apple-touch-icon" href="./icon-192x192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192x192.png">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #07090d;
+  --surface: #0d1117;
+  --surface2: #131920;
+  --surface3: #1a2232;
+  --border: #1e2a3a;
+  --border2: #263040;
+  --purple: #7c3aed;
+  --purple-light: #a855f7;
+  --purple-dim: rgba(124,58,237,0.15);
+  --purple-glow: rgba(124,58,237,0.4);
+  --green: #10b981;
+  --green-dim: rgba(16,185,129,0.12);
+  --red: #ef4444;
+  --red-dim: rgba(239,68,68,0.12);
+  --yellow: #f59e0b;
+  --yellow-dim: rgba(245,158,11,0.12);
+  --blue: #3b82f6;
+  --blue-dim: rgba(59,130,246,0.12);
+  --cyan: #06b6d4;
+  --cyan-dim: rgba(6,182,212,0.12);
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #475569;
+  --mono: 'Space Mono', monospace;
+  --sans: 'Space Grotesk', sans-serif;
+  --nav-h: 64px;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+  padding-bottom: var(--nav-h);
+}
+
+/* ── NOISE OVERLAY ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── LAYOUT ── */
+.app { position: relative; z-index: 1; }
+
+.section { display: none; padding: 20px; max-width: 900px; margin: 0 auto; }
+.section.active { display: block; }
+
+/* ── TOP BAR ── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(7,9,13,0.85);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 20px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  background: var(--purple);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 0 16px var(--purple-glow);
+}
+
+.logo span { color: var(--purple-light); }
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.date-badge {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--mono);
+  display: none;
+}
+
+.greeting {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-h);
+  background: rgba(13,17,23,0.95);
+  backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: 200;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 10px;
+  transition: all 0.2s;
+  min-width: 60px;
+  color: var(--text3);
+}
+
+.nav-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.nav-btn span { font-size: 10px; font-weight: 500; letter-spacing: 0.04em; }
+
+.nav-btn.active {
+  color: var(--purple-light);
+}
+
+.nav-btn.active svg {
+  filter: drop-shadow(0 0 6px var(--purple-glow));
+}
+
+/* ── CARDS ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 14px;
+  transition: border-color 0.2s;
+}
+
+.card:hover { border-color: var(--border2); }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.card-action {
+  background: var(--purple-dim);
+  border: 1px solid var(--purple);
+  color: var(--purple-light);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--sans);
+}
+
+.card-action:hover {
+  background: var(--purple);
+  color: white;
+}
+
+/* ── KPI GRID ── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+
+.kpi.green::after { background: var(--green); }
+.kpi.red::after { background: var(--red); }
+.kpi.yellow::after { background: var(--yellow); }
+.kpi.blue::after { background: var(--blue); }
+.kpi.purple::after { background: var(--purple); }
+.kpi.cyan::after { background: var(--cyan); }
+
+.kpi-label {
+  font-size: 10px;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.kpi-value {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--mono);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.kpi-sub {
+  font-size: 11px;
+  color: var(--text3);
+}
+
+/* ── PROGRESS BAR ── */
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.5s ease;
+}
+
+.progress-fill.green { background: var(--green); }
+.progress-fill.purple { background: var(--purple); }
+.progress-fill.yellow { background: var(--yellow); }
+.progress-fill.blue { background: var(--blue); }
+.progress-fill.cyan { background: var(--cyan); }
+
+/* ── TASK LIST ── */
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.task-item:last-child { border-bottom: none; padding-bottom: 0; }
+.task-item:first-child { padding-top: 0; }
+
+.task-check {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 2px solid var(--border2);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.task-item.done .task-check {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.task-item.done .task-check::after {
+  content: '✓';
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.task-item.done .task-text {
+  text-decoration: line-through;
+  color: var(--text3);
+}
+
+.task-text { flex: 1; font-size: 14px; }
+.task-tag {
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.tag-business { background: var(--blue-dim); color: var(--blue); }
+.tag-trading { background: var(--purple-dim); color: var(--purple-light); }
+.tag-fitness { background: var(--green-dim); color: var(--green); }
+.tag-personal { background: var(--yellow-dim); color: var(--yellow); }
+
+/* ── SECTION HEADER ── */
+.section-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section-title .icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+}
+
+/* ── LEAD / ITEM ROWS ── */
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.item-row:last-child { border-bottom: none; padding-bottom: 0; }
+.item-row:first-child { padding-top: 0; }
+
+.item-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+
+.item-info { flex: 1; min-width: 0; }
+.item-name { font-size: 14px; font-weight: 600; }
+.item-sub { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+.item-right { text-align: right; flex-shrink: 0; }
+.item-value { font-size: 14px; font-weight: 700; font-family: var(--mono); }
+.item-label { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-hot { background: rgba(239,68,68,0.15); color: #f87171; }
+.badge-warm { background: rgba(245,158,11,0.15); color: var(--yellow); }
+.badge-cold { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.badge-closed { background: rgba(16,185,129,0.15); color: var(--green); }
+.badge-pending { background: rgba(124,58,237,0.15); color: var(--purple-light); }
+
+/* ── DISCIPLINE SCORE ── */
+.discipline-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.disc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.disc-item:hover { background: var(--surface3); }
+
+.disc-toggle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid var(--border2);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.disc-item.checked .disc-toggle {
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.disc-item.checked .disc-toggle::after {
+  content: '✓';
+  color: white;
+  font-size: 11px;
+}
+
+.disc-label { font-size: 12px; font-weight: 500; }
+
+/* ── TIME BLOCKS ── */
+.timeblock-list { display: flex; flex-direction: column; gap: 8px; }
+
+.timeblock {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.timeblock-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  padding-top: 4px;
+  width: 44px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.timeblock-line {
+  width: 2px;
+  background: var(--border);
+  border-radius: 1px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.timeblock-line::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border2);
+}
+
+.timeblock.current .timeblock-line { background: var(--purple); }
+.timeblock.current .timeblock-line::before { background: var(--purple-light); box-shadow: 0 0 8px var(--purple); }
+
+.timeblock-content {
+  flex: 1;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border-left: 3px solid transparent;
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.timeblock-content:hover { background: var(--surface3); }
+
+.timeblock.work .timeblock-content { border-color: var(--blue); }
+.timeblock.trading .timeblock-content { border-color: var(--purple); }
+.timeblock.fitness .timeblock-content { border-color: var(--green); }
+.timeblock.break .timeblock-content { border-color: var(--yellow); }
+.timeblock.morning .timeblock-content { border-color: var(--cyan); }
+.timeblock.evening .timeblock-content { border-color: var(--text3); }
+.timeblock.done .timeblock-content { opacity: 0.5; }
+
+.timeblock-title { font-size: 13px; font-weight: 600; }
+.timeblock-desc { font-size: 11px; color: var(--text2); margin-top: 3px; }
+
+/* ── STAT RING ── */
+.ring-row {
+  display: flex;
+  gap: 16px;
+  justify-content: space-around;
+  padding: 8px 0;
+}
+
+.ring-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+
+.ring-svg { transform: rotate(-90deg); }
+
+.ring-label { font-size: 11px; color: var(--text2); font-weight: 500; text-align: center; }
+
+/* ── WORKOUT LOG ── */
+.workout-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.workout-entry:last-child { border-bottom: none; }
+
+.workout-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+/* ── MODAL ── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(4px);
+  z-index: 500;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.modal-overlay.open { display: flex; }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 20px 20px 0 0;
+  padding: 24px 20px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: slideUp 0.25s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border2);
+  border-radius: 2px;
+  margin: 0 auto 20px;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.form-group { margin-bottom: 14px; }
+
+.form-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
+}
+
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--sans);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--purple);
+}
+
+.form-textarea { resize: vertical; min-height: 80px; }
+.form-select option { background: var(--surface2); }
+
+.btn-row { display: flex; gap: 10px; margin-top: 20px; }
+
+.btn {
+  flex: 1;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: var(--sans);
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--purple);
+  color: white;
+}
+
+.btn-primary:hover { background: var(--purple-light); }
+
+.btn-ghost {
+  background: var(--surface2);
+  color: var(--text2);
+  border: 1px solid var(--border2);
+}
+
+.btn-ghost:hover { background: var(--surface3); }
+
+/* ── ACCOUNT CARD ── */
+.account-card {
+  background: var(--surface2);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.account-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+}
+
+.account-card.funded::before { background: var(--green); }
+.account-card.evaluation::before { background: var(--yellow); }
+.account-card.failed::before { background: var(--red); }
+
+.account-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.account-firm { font-size: 11px; color: var(--text2); }
+
+.account-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.account-stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.06em; }
+.account-stat-value { font-size: 15px; font-weight: 700; font-family: var(--mono); margin-top: 2px; }
+
+/* ── SLEEP TRACKER ── */
+.sleep-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.sleep-day { font-size: 11px; color: var(--text3); width: 30px; flex-shrink: 0; }
+
+.sleep-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sleep-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--purple);
+}
+
+.sleep-hours { font-size: 12px; font-family: var(--mono); width: 36px; text-align: right; flex-shrink: 0; }
+
+/* ── WEIGHT CHART ── */
+.weight-dots {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 60px;
+  padding: 0 4px;
+}
+
+.weight-bar {
+  flex: 1;
+  background: var(--purple-dim);
+  border-radius: 3px 3px 0 0;
+  border: 1px solid var(--purple);
+  border-bottom: none;
+  min-height: 4px;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.weight-bar:hover { background: var(--purple); }
+
+/* ── MEETING CARD ── */
+.meeting-item {
+  display: flex;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.meeting-item:last-child { border-bottom: none; }
+.meeting-item:first-child { padding-top: 0; }
+
+.meeting-time {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--purple-light);
+  min-width: 44px;
+  padding-top: 2px;
+}
+
+.meeting-info { flex: 1; }
+.meeting-title { font-size: 14px; font-weight: 600; }
+.meeting-with { font-size: 12px; color: var(--text2); margin-top: 2px; }
+
+/* ── EMPTY STATE ── */
+.empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: var(--text3);
+}
+
+.empty-icon { font-size: 36px; margin-bottom: 10px; }
+.empty-text { font-size: 13px; }
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* ── RESPONSIVE ── */
+@media (min-width: 600px) {
+  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .date-badge { display: block; }
+  body { padding-bottom: 0; }
+  .bottom-nav { display: none; }
+  .topbar { padding: 0 32px; }
+  .section { padding: 28px 32px; }
+
+  /* sidebar nav */
+  .sidebar {
+    display: flex !important;
+    position: fixed;
+    left: 0;
+    top: 58px;
+    bottom: 0;
+    width: 64px;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 0;
+    gap: 4px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    z-index: 100;
+  }
+
+  .sidebar .nav-btn { min-width: unset; width: 48px; height: 48px; padding: 0; border-radius: 12px; }
+  .sidebar .nav-btn span { display: none; }
+
+  .app { margin-left: 64px; }
+}
+
+.sidebar { display: none; }
+
+/* ── STREAK BADGE ── */
+.streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--yellow-dim);
+  color: var(--yellow);
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ── SCORE RING ── */
+.score-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 0;
+}
+
+.score-center {
+  text-align: center;
+}
+
+.score-number {
+  font-size: 48px;
+  font-weight: 700;
+  font-family: var(--mono);
+  line-height: 1;
+}
+
+.score-label {
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 4px;
+}
+
+/* ── PNL DISPLAY ── */
+.pnl-positive { color: var(--green); }
+.pnl-negative { color: var(--red); }
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface2);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px;
+  background: none;
+  border: none;
+  border-radius: 7px;
+  color: var(--text3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: var(--sans);
+}
+
+.tab-btn.active {
+  background: var(--surface3);
+  color: var(--text);
+}
+
+/* ── FAB ── */
+.fab {
+  position: fixed;
+  bottom: calc(var(--nav-h) + 16px);
+  right: 20px;
+  width: 52px;
+  height: 52px;
+  background: var(--purple);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px var(--purple-glow);
+  z-index: 150;
+  border: none;
+  font-size: 24px;
+  color: white;
+  transition: all 0.2s;
+}
+
+.fab:hover { transform: scale(1.05); background: var(--purple-light); }
+
+@media (min-width: 600px) {
+  .fab { bottom: 24px; right: 24px; }
+}
+
+/* ── NOTIFICATION DOT ── */
+.notif-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--red);
+  border-radius: 50%;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- TOP BAR -->
+<header class="topbar">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    PULI <span>OS</span>
+  </div>
+  <div class="topbar-right">
+    <div class="date-badge" id="topDate"></div>
+    <div class="greeting" id="topGreeting"></div>
+  </div>
+</header>
+
+<!-- SIDEBAR (desktop) -->
+<nav class="sidebar" id="sidebar">
+  <button class="nav-btn active" data-section="dashboard" onclick="showSection('dashboard',this)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Home</span>
+  </button>
+  <button class="nav-btn" data-section="business" onclick="showSection('business',this)">
+    <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+    <span>Biz</span>
+  </button>
+  <button class="nav-btn" data-section="trading" onclick="showSection('trading',this)">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Trade</span>
+  </button>
+  <button class="nav-btn" data-section="fitness" onclick="showSection('fitness',this)">
+    <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+    <span>Fit</span>
+  </button>
+  <button class="nav-btn" data-section="plan" onclick="showSection('plan',this)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span>Plan</span>
+  </button>
+</nav>
+
+<!-- ═══ DASHBOARD ═══ -->
+<section class="section active" id="dashboard">
+  <div class="section-title">
+    <div class="icon" style="background:var(--purple-dim)">⚡</div>
+    <div>
+      Good <span id="timeOfDay">morning</span>
+      <div style="font-size:13px;color:var(--text2);font-weight:400;margin-top:2px" id="dashDate"></div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi green">
+      <div class="kpi-label">Today's PnL</div>
+      <div class="kpi-value" id="dash-pnl">+$0</div>
+      <div class="kpi-sub">0 trades</div>
+      <div class="progress-bar"><div class="progress-fill green" id="pnl-bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-label">Leads</div>
+      <div class="kpi-value" id="dash-leads">0</div>
+      <div class="kpi-sub">active pipeline</div>
+      <div class="progress-bar"><div class="progress-fill blue" id="leads-bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi cyan">
+      <div class="kpi-label">Workouts</div>
+      <div class="kpi-value" id="dash-workouts">0<span style="font-size:14px">/5</span></div>
+      <div class="kpi-sub">this week</div>
+      <div class="progress-bar"><div class="progress-fill cyan" id="workout-bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi yellow">
+      <div class="kpi-label">Tasks Done</div>
+      <div class="kpi-value" id="dash-tasks">0%</div>
+      <div class="kpi-sub">today</div>
+      <div class="progress-bar"><div class="progress-fill yellow" id="tasks-bar" style="width:0%"></div></div>
+    </div>
+  </div>
+
+  <!-- Today's Tasks -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Today's Tasks</div>
+      <button class="card-action" onclick="openModal('task-modal')">+ Add</button>
+    </div>
+    <div id="task-list">
+      <div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No tasks yet. Add your first task!</div></div>
+    </div>
+  </div>
+
+  <!-- Weekly Progress Rings -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Weekly Goals</div>
+    </div>
+    <div class="ring-row">
+      <div class="ring-item">
+        <svg class="ring-svg" width="70" height="70" viewBox="0 0 70 70">
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--border)" stroke-width="6"/>
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--green)" stroke-width="6" stroke-linecap="round"
+            id="ring-pnl" stroke-dasharray="175.9" stroke-dashoffset="175.9"/>
+          <text x="35" y="39" text-anchor="middle" fill="var(--text)" font-size="12" font-family="Space Mono" id="ring-pnl-text">0%</text>
+        </svg>
+        <div class="ring-label">PnL<br>Goal</div>
+      </div>
+      <div class="ring-item">
+        <svg class="ring-svg" width="70" height="70" viewBox="0 0 70 70">
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--border)" stroke-width="6"/>
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--blue)" stroke-width="6" stroke-linecap="round"
+            id="ring-biz" stroke-dasharray="175.9" stroke-dashoffset="175.9"/>
+          <text x="35" y="39" text-anchor="middle" fill="var(--text)" font-size="12" font-family="Space Mono" id="ring-biz-text">0%</text>
+        </svg>
+        <div class="ring-label">Biz<br>Leads</div>
+      </div>
+      <div class="ring-item">
+        <svg class="ring-svg" width="70" height="70" viewBox="0 0 70 70">
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--border)" stroke-width="6"/>
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--cyan)" stroke-width="6" stroke-linecap="round"
+            id="ring-fit" stroke-dasharray="175.9" stroke-dashoffset="175.9"/>
+          <text x="35" y="39" text-anchor="middle" fill="var(--text)" font-size="12" font-family="Space Mono" id="ring-fit-text">0%</text>
+        </svg>
+        <div class="ring-label">Fitness<br>Days</div>
+      </div>
+      <div class="ring-item">
+        <svg class="ring-svg" width="70" height="70" viewBox="0 0 70 70">
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--border)" stroke-width="6"/>
+          <circle cx="35" cy="35" r="28" fill="none" stroke="var(--yellow)" stroke-width="6" stroke-linecap="round"
+            id="ring-disc" stroke-dasharray="175.9" stroke-dashoffset="175.9"/>
+          <text x="35" y="39" text-anchor="middle" fill="var(--text)" font-size="12" font-family="Space Mono" id="ring-disc-text">0%</text>
+        </svg>
+        <div class="ring-label">Discipline<br>Score</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Stats Row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title" style="margin-bottom:10px">Next Meeting</div>
+      <div id="dash-next-meeting" style="font-size:13px;color:var(--text2)">No meetings today</div>
+    </div>
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title" style="margin-bottom:10px">Body Weight</div>
+      <div style="font-size:24px;font-weight:700;font-family:var(--mono)" id="dash-weight">— kg</div>
+      <div style="font-size:11px;color:var(--text3)">last logged</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ BUSINESS ═══ -->
+<section class="section" id="business">
+  <div class="section-title">
+    <div class="icon" style="background:var(--blue-dim)">💼</div>
+    Business
+  </div>
+
+  <!-- Business KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi blue">
+      <div class="kpi-label">Active Leads</div>
+      <div class="kpi-value" id="biz-active-leads">0</div>
+      <div class="kpi-sub">in pipeline</div>
+    </div>
+    <div class="kpi green">
+      <div class="kpi-label">Closed</div>
+      <div class="kpi-value" id="biz-closed">0</div>
+      <div class="kpi-sub">this month</div>
+    </div>
+    <div class="kpi yellow">
+      <div class="kpi-label">Replies Due</div>
+      <div class="kpi-value" id="biz-replies">0</div>
+      <div class="kpi-sub">pending</div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-label">Meetings</div>
+      <div class="kpi-value" id="biz-meetings-count">0</div>
+      <div class="kpi-sub">this week</div>
+    </div>
+  </div>
+
+  <!-- Leads -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Lead Pipeline</div>
+      <button class="card-action" onclick="openModal('lead-modal')">+ Lead</button>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="filterLeads('all',this)">All</button>
+      <button class="tab-btn" onclick="filterLeads('hot',this)">🔥 Hot</button>
+      <button class="tab-btn" onclick="filterLeads('warm',this)">Warm</button>
+      <button class="tab-btn" onclick="filterLeads('closed',this)">Closed</button>
+    </div>
+    <div id="lead-list">
+      <div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">No leads yet. Start tracking your pipeline!</div></div>
+    </div>
+  </div>
+
+  <!-- Meetings -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Meetings</div>
+      <button class="card-action" onclick="openModal('meeting-modal')">+ Meeting</button>
+    </div>
+    <div id="meeting-list">
+      <div class="empty"><div class="empty-icon">📅</div><div class="empty-text">No meetings scheduled</div></div>
+    </div>
+  </div>
+
+  <!-- Replies Needed -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Replies Needed</div>
+      <button class="card-action" onclick="openModal('reply-modal')">+ Add</button>
+    </div>
+    <div id="reply-list">
+      <div class="empty"><div class="empty-icon">💬</div><div class="empty-text">No pending replies</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ TRADING ═══ -->
+<section class="section" id="trading">
+  <div class="section-title">
+    <div class="icon" style="background:var(--purple-dim)">📈</div>
+    Trading
+  </div>
+
+  <!-- Trading KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi green">
+      <div class="kpi-label">Today PnL</div>
+      <div class="kpi-value" id="trade-today-pnl">+$0</div>
+      <div class="kpi-sub">0 trades</div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-label">Month PnL</div>
+      <div class="kpi-value" id="trade-month-pnl">+$0</div>
+      <div class="kpi-sub">0 trades</div>
+    </div>
+    <div class="kpi blue">
+      <div class="kpi-label">Win Rate</div>
+      <div class="kpi-value" id="trade-winrate">0%</div>
+      <div class="kpi-sub">all time</div>
+    </div>
+    <div class="kpi yellow">
+      <div class="kpi-label">Accounts</div>
+      <div class="kpi-value" id="trade-accounts">0</div>
+      <div class="kpi-sub">funded</div>
+    </div>
+  </div>
+
+  <!-- Discipline Score -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Discipline Score</div>
+      <div class="streak" id="disc-streak">🔥 0 days</div>
+    </div>
+    <div class="score-display">
+      <div style="position:relative;width:120px;height:120px">
+        <svg style="transform:rotate(-90deg)" width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="50" fill="none" stroke="var(--border)" stroke-width="10"/>
+          <circle cx="60" cy="60" r="50" fill="none" stroke="var(--yellow)" stroke-width="10" stroke-linecap="round"
+            id="disc-ring" stroke-dasharray="314.2" stroke-dashoffset="314.2"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column">
+          <div class="score-number" id="disc-score">0</div>
+          <div class="score-label">/ 100</div>
+        </div>
+      </div>
+    </div>
+    <div class="discipline-grid" id="disc-checks">
+      <!-- Generated by JS -->
+    </div>
+  </div>
+
+  <!-- Funded Accounts -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Funded Accounts</div>
+      <button class="card-action" onclick="openModal('account-modal')">+ Account</button>
+    </div>
+    <div id="account-list">
+      <div class="empty"><div class="empty-icon">🏦</div><div class="empty-text">No funded accounts yet</div></div>
+    </div>
+  </div>
+
+  <!-- Trade Journal -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Trade Journal</div>
+      <button class="card-action" onclick="openModal('trade-modal')">+ Trade</button>
+    </div>
+    <div id="trade-list">
+      <div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No trades logged today</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ FITNESS ═══ -->
+<section class="section" id="fitness">
+  <div class="section-title">
+    <div class="icon" style="background:var(--green-dim)">💪</div>
+    Fitness
+  </div>
+
+  <!-- Fitness KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi green">
+      <div class="kpi-label">Workouts</div>
+      <div class="kpi-value" id="fit-week-workouts">0<span style="font-size:14px">/5</span></div>
+      <div class="kpi-sub">this week</div>
+      <div class="progress-bar"><div class="progress-fill green" id="fit-workout-bar" style="width:0%"></div></div>
+    </div>
+    <div class="kpi purple">
+      <div class="kpi-label">Avg Sleep</div>
+      <div class="kpi-value" id="fit-avg-sleep">0h</div>
+      <div class="kpi-sub">last 7 days</div>
+    </div>
+    <div class="kpi cyan">
+      <div class="kpi-label">Weight</div>
+      <div class="kpi-value" id="fit-weight">—</div>
+      <div class="kpi-sub" id="fit-weight-delta">no data</div>
+    </div>
+    <div class="kpi yellow">
+      <div class="kpi-label">Streak</div>
+      <div class="kpi-value" id="fit-streak">0</div>
+      <div class="kpi-sub">days active</div>
+    </div>
+  </div>
+
+  <!-- Workout Log -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Workout Log</div>
+      <button class="card-action" onclick="openModal('workout-modal')">+ Log</button>
+    </div>
+    <div id="workout-list">
+      <div class="empty"><div class="empty-icon">🏋️</div><div class="empty-text">No workouts logged yet</div></div>
+    </div>
+  </div>
+
+  <!-- Sleep Tracker -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Sleep Tracker</div>
+      <button class="card-action" onclick="openModal('sleep-modal')">+ Log</button>
+    </div>
+    <div id="sleep-list">
+      <div class="empty"><div class="empty-icon">😴</div><div class="empty-text">No sleep data logged</div></div>
+    </div>
+  </div>
+
+  <!-- Weight Chart -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Body Weight</div>
+      <button class="card-action" onclick="openModal('weight-modal')">+ Log</button>
+    </div>
+    <div id="weight-chart-area">
+      <div class="empty"><div class="empty-icon">⚖️</div><div class="empty-text">No weight data yet</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ DAILY PLAN ═══ -->
+<section class="section" id="plan">
+  <div class="section-title">
+    <div class="icon" style="background:var(--cyan-dim)">📅</div>
+    Daily Plan
+  </div>
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div style="font-size:13px;color:var(--text2)" id="plan-date-label"></div>
+    <button class="card-action" onclick="openModal('block-modal')">+ Add Block</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Time Blocks</div>
+      <div style="font-size:12px;color:var(--text2)" id="plan-progress-label">0/0 done</div>
+    </div>
+    <div class="timeblock-list" id="plan-list">
+      <div class="empty"><div class="empty-icon">🗓️</div><div class="empty-text">Add time blocks to plan your day</div></div>
+    </div>
+  </div>
+
+  <!-- Default schedule templates -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Load Template</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-ghost" style="flex:none;padding:8px 14px;font-size:12px" onclick="loadTemplate('trader')">📈 Trader Day</button>
+      <button class="btn btn-ghost" style="flex:none;padding:8px 14px;font-size:12px" onclick="loadTemplate('focus')">🧠 Deep Focus</button>
+      <button class="btn btn-ghost" style="flex:none;padding:8px 14px;font-size:12px" onclick="loadTemplate('recovery')">🌿 Recovery</button>
+    </div>
+  </div>
+</section>
+
+</div><!-- /app -->
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav" id="bottomNav">
+  <button class="nav-btn active" data-section="dashboard" onclick="showSection('dashboard',this)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Home</span>
+  </button>
+  <button class="nav-btn" data-section="business" onclick="showSection('business',this)">
+    <svg viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+    <span>Biz</span>
+  </button>
+  <button class="nav-btn" data-section="trading" onclick="showSection('trading',this)">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Trade</span>
+  </button>
+  <button class="nav-btn" data-section="fitness" onclick="showSection('fitness',this)">
+    <svg viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+    <span>Fit</span>
+  </button>
+  <button class="nav-btn" data-section="plan" onclick="showSection('plan',this)">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    <span>Plan</span>
+  </button>
+</nav>
+
+<!-- ══════════════════════════════════════════
+     MODALS
+══════════════════════════════════════════ -->
+
+<!-- Task Modal -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Task</div>
+    <div class="form-group">
+      <label class="form-label">Task</label>
+      <input class="form-input" id="task-text-input" placeholder="What needs to be done?">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Category</label>
+      <select class="form-select" id="task-cat-input">
+        <option value="personal">Personal</option>
+        <option value="business">Business</option>
+        <option value="trading">Trading</option>
+        <option value="fitness">Fitness</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('task-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addTask()">Add Task</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lead Modal -->
+<div class="modal-overlay" id="lead-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Lead</div>
+    <div class="form-group">
+      <label class="form-label">Name / Company</label>
+      <input class="form-input" id="lead-name-input" placeholder="e.g. John Smith / Acme Corp">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Deal Value ($)</label>
+      <input class="form-input" id="lead-value-input" type="number" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-select" id="lead-status-input">
+        <option value="hot">🔥 Hot</option>
+        <option value="warm">Warm</option>
+        <option value="cold">Cold</option>
+        <option value="closed">✅ Closed</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-textarea" id="lead-notes-input" placeholder="Any notes..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('lead-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addLead()">Add Lead</button>
+    </div>
+  </div>
+</div>
+
+<!-- Meeting Modal -->
+<div class="modal-overlay" id="meeting-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Schedule Meeting</div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input class="form-input" id="meeting-title-input" placeholder="e.g. Client Call">
+    </div>
+    <div class="form-group">
+      <label class="form-label">With</label>
+      <input class="form-input" id="meeting-with-input" placeholder="e.g. John Smith">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Time</label>
+      <input class="form-input" id="meeting-time-input" type="time">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Date</label>
+      <input class="form-input" id="meeting-date-input" type="date">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('meeting-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addMeeting()">Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reply Modal -->
+<div class="modal-overlay" id="reply-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Reply Needed</div>
+    <div class="form-group">
+      <label class="form-label">Contact</label>
+      <input class="form-input" id="reply-contact-input" placeholder="e.g. John Smith">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Subject / Context</label>
+      <input class="form-input" id="reply-subject-input" placeholder="What's it about?">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Channel</label>
+      <select class="form-select" id="reply-channel-input">
+        <option value="Email">Email</option>
+        <option value="WhatsApp">WhatsApp</option>
+        <option value="Slack">Slack</option>
+        <option value="LinkedIn">LinkedIn</option>
+        <option value="SMS">SMS</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('reply-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addReply()">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Account Modal -->
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Trading Account</div>
+    <div class="form-group">
+      <label class="form-label">Account Name</label>
+      <input class="form-input" id="acc-name-input" placeholder="e.g. FTMO #1">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Firm</label>
+      <input class="form-input" id="acc-firm-input" placeholder="e.g. FTMO, MyForexFunds">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Account Size ($)</label>
+      <input class="form-input" id="acc-size-input" type="number" placeholder="100000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Current Balance ($)</label>
+      <input class="form-input" id="acc-balance-input" type="number" placeholder="100000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Status</label>
+      <select class="form-select" id="acc-status-input">
+        <option value="funded">✅ Funded</option>
+        <option value="evaluation">📋 Evaluation</option>
+        <option value="failed">❌ Failed</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('account-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addAccount()">Add Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- Trade Modal -->
+<div class="modal-overlay" id="trade-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Log Trade</div>
+    <div class="form-group">
+      <label class="form-label">Instrument</label>
+      <input class="form-input" id="trade-instrument-input" placeholder="e.g. NQ, ES, MNQ">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Direction</label>
+      <select class="form-select" id="trade-dir-input">
+        <option value="LONG">📈 LONG</option>
+        <option value="SHORT">📉 SHORT</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">PnL ($)</label>
+      <input class="form-input" id="trade-pnl-input" type="number" placeholder="e.g. 250 or -150">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <textarea class="form-textarea" id="trade-notes-input" placeholder="Setup, emotion, execution notes..."></textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('trade-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addTrade()">Log Trade</button>
+    </div>
+  </div>
+</div>
+
+<!-- Workout Modal -->
+<div class="modal-overlay" id="workout-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Log Workout</div>
+    <div class="form-group">
+      <label class="form-label">Type</label>
+      <select class="form-select" id="workout-type-input">
+        <option value="🏋️ Lifting">🏋️ Lifting</option>
+        <option value="🏃 Running">🏃 Running</option>
+        <option value="🚴 Cycling">🚴 Cycling</option>
+        <option value="🧘 Yoga">🧘 Yoga</option>
+        <option value="🥊 Boxing">🥊 Boxing</option>
+        <option value="🏊 Swimming">🏊 Swimming</option>
+        <option value="⚽ Sports">⚽ Sports</option>
+        <option value="🚶 Walk">🚶 Walk</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Duration (minutes)</label>
+      <input class="form-input" id="workout-duration-input" type="number" placeholder="60">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notes</label>
+      <input class="form-input" id="workout-notes-input" placeholder="e.g. PR on bench press">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('workout-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addWorkout()">Log Workout</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sleep Modal -->
+<div class="modal-overlay" id="sleep-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Log Sleep</div>
+    <div class="form-group">
+      <label class="form-label">Hours Slept</label>
+      <input class="form-input" id="sleep-hours-input" type="number" step="0.5" placeholder="7.5">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Quality</label>
+      <select class="form-select" id="sleep-quality-input">
+        <option value="great">😴 Great</option>
+        <option value="good">🙂 Good</option>
+        <option value="ok">😐 OK</option>
+        <option value="bad">😩 Bad</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('sleep-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addSleep()">Log Sleep</button>
+    </div>
+  </div>
+</div>
+
+<!-- Weight Modal -->
+<div class="modal-overlay" id="weight-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Log Weight</div>
+    <div class="form-group">
+      <label class="form-label">Weight (kg)</label>
+      <input class="form-input" id="weight-input" type="number" step="0.1" placeholder="75.5">
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('weight-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addWeight()">Log Weight</button>
+    </div>
+  </div>
+</div>
+
+<!-- Time Block Modal -->
+<div class="modal-overlay" id="block-modal">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Add Time Block</div>
+    <div class="form-group">
+      <label class="form-label">Time</label>
+      <input class="form-input" id="block-time-input" type="time" value="09:00">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input class="form-input" id="block-title-input" placeholder="e.g. Deep Work Session">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description</label>
+      <input class="form-input" id="block-desc-input" placeholder="Optional details...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Type</label>
+      <select class="form-select" id="block-type-input">
+        <option value="work">Work</option>
+        <option value="trading">Trading</option>
+        <option value="fitness">Fitness</option>
+        <option value="morning">Morning Routine</option>
+        <option value="evening">Evening Routine</option>
+        <option value="break">Break</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-ghost" onclick="closeModal('block-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="addTimeBlock()">Add Block</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// STATE & PERSISTENCE
+// ══════════════════════════════════════════
+const TODAY = new Date().toISOString().split('T')[0];
+
+function load(key, def) {
+  try { return JSON.parse(localStorage.getItem('puliOS_' + key)) ?? def; }
+  catch { return def; }
+}
+function save(key, val) {
+  localStorage.setItem('puliOS_' + key, JSON.stringify(val));
+}
+
+let state = {
+  tasks: load('tasks', []),
+  leads: load('leads', []),
+  meetings: load('meetings', []),
+  replies: load('replies', []),
+  accounts: load('accounts', []),
+  trades: load('trades', []),
+  workouts: load('workouts', []),
+  sleep: load('sleep', []),
+  weights: load('weights', []),
+  timeblocks: load('timeblocks', []),
+  discChecks: load('discChecks', {}),
+  discStreak: load('discStreak', 0),
+  lastDiscDate: load('lastDiscDate', ''),
+};
+
+function saveAll() {
+  Object.keys(state).forEach(k => save(k, state[k]));
+}
+
+// ══════════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════════
+function showSection(id, btn) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll(`[data-section="${id}"]`).forEach(b => b.classList.add('active'));
+
+  renderSection(id);
+}
+
+function renderSection(id) {
+  switch(id) {
+    case 'dashboard': renderDashboard(); break;
+    case 'business': renderBusiness(); break;
+    case 'trading': renderTrading(); break;
+    case 'fitness': renderFitness(); break;
+    case 'plan': renderPlan(); break;
+  }
+}
+
+// ══════════════════════════════════════════
+// MODALS
+// ══════════════════════════════════════════
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ══════════════════════════════════════════
+// DATETIME
+// ══════════════════════════════════════════
+function initDateTime() {
+  const now = new Date();
+  const h = now.getHours();
+  const tod = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  document.getElementById('timeOfDay').textContent = tod;
+
+  const dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
+  document.getElementById('dashDate').textContent = dateStr;
+  document.getElementById('topDate').textContent = now.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  document.getElementById('plan-date-label').textContent = dateStr;
+}
+
+// ══════════════════════════════════════════
+// TASKS
+// ══════════════════════════════════════════
+function addTask() {
+  const text = document.getElementById('task-text-input').value.trim();
+  const cat = document.getElementById('task-cat-input').value;
+  if (!text) return;
+  state.tasks.push({ id: Date.now(), text, cat, done: false, date: TODAY });
+  saveAll();
+  document.getElementById('task-text-input').value = '';
+  closeModal('task-modal');
+  renderDashboard();
+}
+
+function toggleTask(id) {
+  const t = state.tasks.find(t => t.id === id);
+  if (t) { t.done = !t.done; saveAll(); renderDashboard(); }
+}
+
+function renderTasks() {
+  const todayTasks = state.tasks.filter(t => t.date === TODAY);
+  const el = document.getElementById('task-list');
+  if (!todayTasks.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">No tasks yet. Add your first task!</div></div>';
+    return;
+  }
+  el.innerHTML = todayTasks.map(t => `
+    <div class="task-item ${t.done ? 'done' : ''}" onclick="toggleTask(${t.id})">
+      <div class="task-check"></div>
+      <div class="task-text">${escHtml(t.text)}</div>
+      <div class="task-tag tag-${t.cat}">${t.cat}</div>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════
+function renderDashboard() {
+  renderTasks();
+
+  // Tasks KPI
+  const todayTasks = state.tasks.filter(t => t.date === TODAY);
+  const doneTasks = todayTasks.filter(t => t.done).length;
+  const taskPct = todayTasks.length ? Math.round(doneTasks / todayTasks.length * 100) : 0;
+  document.getElementById('dash-tasks').textContent = taskPct + '%';
+  document.getElementById('tasks-bar').style.width = taskPct + '%';
+
+  // PnL KPI
+  const todayTrades = state.trades.filter(t => t.date === TODAY);
+  const todayPnl = todayTrades.reduce((s, t) => s + t.pnl, 0);
+  document.getElementById('dash-pnl').textContent = fmt$(todayPnl);
+  document.getElementById('dash-pnl').className = 'kpi-value ' + (todayPnl >= 0 ? 'pnl-positive' : 'pnl-negative');
+  const pnlGoal = 500;
+  document.getElementById('pnl-bar').style.width = Math.min(100, Math.max(0, (todayPnl / pnlGoal) * 100)) + '%';
+
+  // Leads KPI
+  const activeLeads = state.leads.filter(l => l.status !== 'closed').length;
+  document.getElementById('dash-leads').textContent = activeLeads;
+  document.getElementById('leads-bar').style.width = Math.min(100, activeLeads * 10) + '%';
+
+  // Workouts KPI
+  const weekStart = getWeekStart();
+  const weekWorkouts = state.workouts.filter(w => w.date >= weekStart).length;
+  document.getElementById('dash-workouts').innerHTML = weekWorkouts + '<span style="font-size:14px">/5</span>';
+  document.getElementById('workout-bar').style.width = (weekWorkouts / 5 * 100) + '%';
+
+  // Next meeting
+  const upcoming = state.meetings
+    .filter(m => m.date >= TODAY)
+    .sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const nextM = upcoming[0];
+  document.getElementById('dash-next-meeting').innerHTML = nextM
+    ? `<strong>${escHtml(nextM.title)}</strong><br><span style="color:var(--text3);font-size:11px">${nextM.time} — ${escHtml(nextM.with)}</span>`
+    : 'No meetings today';
+
+  // Weight
+  if (state.weights.length) {
+    const latest = state.weights[state.weights.length - 1];
+    document.getElementById('dash-weight').textContent = latest.kg + ' kg';
+  }
+
+  // Rings
+  setRing('ring-pnl', 'ring-pnl-text', Math.min(100, Math.max(0, Math.round((todayPnl / pnlGoal) * 100))));
+  setRing('ring-biz', 'ring-biz-text', Math.min(100, Math.round(activeLeads * 10)));
+  setRing('ring-fit', 'ring-fit-text', Math.round(weekWorkouts / 5 * 100));
+  setRing('ring-disc', 'ring-disc-text', calcDiscScore());
+}
+
+function setRing(ringId, textId, pct) {
+  const circ = 175.9;
+  const offset = circ - (circ * pct / 100);
+  document.getElementById(ringId).style.strokeDashoffset = offset;
+  document.getElementById(textId).textContent = pct + '%';
+}
+
+// ══════════════════════════════════════════
+// BUSINESS
+// ══════════════════════════════════════════
+function addLead() {
+  const name = document.getElementById('lead-name-input').value.trim();
+  const value = parseFloat(document.getElementById('lead-value-input').value) || 0;
+  const status = document.getElementById('lead-status-input').value;
+  const notes = document.getElementById('lead-notes-input').value.trim();
+  if (!name) return;
+  state.leads.push({ id: Date.now(), name, value, status, notes, date: TODAY });
+  saveAll();
+  ['lead-name-input','lead-value-input','lead-notes-input'].forEach(id => document.getElementById(id).value = '');
+  closeModal('lead-modal');
+  renderBusiness();
+}
+
+function addMeeting() {
+  const title = document.getElementById('meeting-title-input').value.trim();
+  const with_ = document.getElementById('meeting-with-input').value.trim();
+  const time = document.getElementById('meeting-time-input').value;
+  const date = document.getElementById('meeting-date-input').value || TODAY;
+  if (!title) return;
+  state.meetings.push({ id: Date.now(), title, with: with_, time, date });
+  saveAll();
+  closeModal('meeting-modal');
+  renderBusiness();
+}
+
+function addReply() {
+  const contact = document.getElementById('reply-contact-input').value.trim();
+  const subject = document.getElementById('reply-subject-input').value.trim();
+  const channel = document.getElementById('reply-channel-input').value;
+  if (!contact) return;
+  state.replies.push({ id: Date.now(), contact, subject, channel, done: false, date: TODAY });
+  saveAll();
+  ['reply-contact-input','reply-subject-input'].forEach(id => document.getElementById(id).value = '');
+  closeModal('reply-modal');
+  renderBusiness();
+}
+
+let leadFilter = 'all';
+function filterLeads(f, btn) {
+  leadFilter = f;
+  document.querySelectorAll('.tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderLeads();
+}
+
+function renderLeads() {
+  let leads = state.leads;
+  if (leadFilter !== 'all') leads = leads.filter(l => l.status === leadFilter);
+  const el = document.getElementById('lead-list');
+  if (!leads.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">No leads in this category</div></div>';
+    return;
+  }
+  el.innerHTML = leads.map(l => `
+    <div class="item-row">
+      <div class="item-avatar" style="background:var(--blue-dim);color:var(--blue)">${l.name[0].toUpperCase()}</div>
+      <div class="item-info">
+        <div class="item-name">${escHtml(l.name)}</div>
+        <div class="item-sub">${escHtml(l.notes) || 'No notes'}</div>
+      </div>
+      <div class="item-right">
+        <div class="item-value">${l.value ? '$' + l.value.toLocaleString() : '—'}</div>
+        <div><span class="badge badge-${l.status}">${l.status}</span></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderMeetings() {
+  const sorted = [...state.meetings].sort((a,b) => (a.date+a.time).localeCompare(b.date+b.time));
+  const el = document.getElementById('meeting-list');
+  if (!sorted.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div class="empty-text">No meetings scheduled</div></div>';
+    return;
+  }
+  el.innerHTML = sorted.map(m => `
+    <div class="meeting-item">
+      <div class="meeting-time">${m.time || '--:--'}</div>
+      <div class="meeting-info">
+        <div class="meeting-title">${escHtml(m.title)}</div>
+        <div class="meeting-with">${escHtml(m.with)} • ${m.date}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderReplies() {
+  const el = document.getElementById('reply-list');
+  if (!state.replies.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">💬</div><div class="empty-text">No pending replies</div></div>';
+    return;
+  }
+  el.innerHTML = state.replies.map(r => `
+    <div class="item-row" style="cursor:pointer" onclick="toggleReply(${r.id})">
+      <div class="item-avatar" style="background:var(--purple-dim);color:var(--purple-light)">${r.channel[0]}</div>
+      <div class="item-info">
+        <div class="item-name" style="${r.done ? 'text-decoration:line-through;opacity:0.5' : ''}">${escHtml(r.contact)}</div>
+        <div class="item-sub">${escHtml(r.subject)} • ${r.channel}</div>
+      </div>
+      <div class="item-right">
+        <span class="badge ${r.done ? 'badge-closed' : 'badge-pending'}">${r.done ? 'Done' : 'Pending'}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function toggleReply(id) {
+  const r = state.replies.find(r => r.id === id);
+  if (r) { r.done = !r.done; saveAll(); renderReplies(); updateBizKPIs(); }
+}
+
+function updateBizKPIs() {
+  const active = state.leads.filter(l => l.status !== 'closed').length;
+  const closed = state.leads.filter(l => l.status === 'closed').length;
+  const pendingReplies = state.replies.filter(r => !r.done).length;
+  const weekStart = getWeekStart();
+  const weekMeetings = state.meetings.filter(m => m.date >= weekStart).length;
+  document.getElementById('biz-active-leads').textContent = active;
+  document.getElementById('biz-closed').textContent = closed;
+  document.getElementById('biz-replies').textContent = pendingReplies;
+  document.getElementById('biz-meetings-count').textContent = weekMeetings;
+}
+
+function renderBusiness() {
+  updateBizKPIs();
+  renderLeads();
+  renderMeetings();
+  renderReplies();
+}
+
+// ══════════════════════════════════════════
+// TRADING
+// ══════════════════════════════════════════
+const DISC_RULES = [
+  'Pre-market prep', 'Trading plan written', 'No revenge trading',
+  'Risk managed (<1%)', 'Stopped at daily limit', 'No FOMO entries',
+  'Journal filled', 'Screen time tracked'
+];
+
+function initDiscipline() {
+  const today = TODAY;
+  if (state.lastDiscDate !== today) {
+    state.discChecks = {};
+    if (state.lastDiscDate) {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yest = yesterday.toISOString().split('T')[0];
+      if (state.lastDiscDate === yest) state.discStreak++;
+      else state.discStreak = 0;
+    }
+    state.lastDiscDate = today;
+    saveAll();
+  }
+}
+
+function calcDiscScore() {
+  const checked = Object.values(state.discChecks).filter(Boolean).length;
+  return Math.round((checked / DISC_RULES.length) * 100);
+}
+
+function toggleDisc(idx) {
+  state.discChecks[idx] = !state.discChecks[idx];
+  saveAll();
+  renderDiscScore();
+}
+
+function renderDiscScore() {
+  const score = calcDiscScore();
+  document.getElementById('disc-score').textContent = score;
+  const circ = 314.2;
+  document.getElementById('disc-ring').style.strokeDashoffset = circ - (circ * score / 100);
+  document.getElementById('disc-streak').textContent = '🔥 ' + state.discStreak + ' days';
+
+  const grid = document.getElementById('disc-checks');
+  grid.innerHTML = DISC_RULES.map((rule, i) => `
+    <div class="disc-item ${state.discChecks[i] ? 'checked' : ''}" onclick="toggleDisc(${i})">
+      <div class="disc-toggle"></div>
+      <div class="disc-label">${rule}</div>
+    </div>
+  `).join('');
+}
+
+function addAccount() {
+  const name = document.getElementById('acc-name-input').value.trim();
+  const firm = document.getElementById('acc-firm-input').value.trim();
+  const size = parseFloat(document.getElementById('acc-size-input').value) || 0;
+  const balance = parseFloat(document.getElementById('acc-balance-input').value) || size;
+  const status = document.getElementById('acc-status-input').value;
+  if (!name) return;
+  state.accounts.push({ id: Date.now(), name, firm, size, balance, status });
+  saveAll();
+  closeModal('account-modal');
+  renderAccounts();
+}
+
+function renderAccounts() {
+  const el = document.getElementById('account-list');
+  if (!state.accounts.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🏦</div><div class="empty-text">No funded accounts yet</div></div>';
+    return;
+  }
+  el.innerHTML = state.accounts.map(a => {
+    const pnl = a.balance - a.size;
+    const pct = ((pnl / a.size) * 100).toFixed(2);
+    const maxDD = (a.size * 0.10).toFixed(0);
+    return `
+      <div class="account-card ${a.status}">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div class="account-name">${escHtml(a.name)}</div>
+            <div class="account-firm">${escHtml(a.firm)} • <span class="badge badge-${a.status === 'funded' ? 'closed' : a.status === 'evaluation' ? 'warm' : 'hot'}">${a.status}</span></div>
+          </div>
+        </div>
+        <div class="account-stats">
+          <div>
+            <div class="account-stat-label">Balance</div>
+            <div class="account-stat-value">$${a.balance.toLocaleString()}</div>
+          </div>
+          <div>
+            <div class="account-stat-label">PnL</div>
+            <div class="account-stat-value ${pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}">${fmt$(pnl)}</div>
+          </div>
+          <div>
+            <div class="account-stat-label">% Return</div>
+            <div class="account-stat-value ${pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}">${pnl >= 0 ? '+' : ''}${pct}%</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function addTrade() {
+  const instrument = document.getElementById('trade-instrument-input').value.trim() || 'NQ';
+  const dir = document.getElementById('trade-dir-input').value;
+  const pnl = parseFloat(document.getElementById('trade-pnl-input').value) || 0;
+  const notes = document.getElementById('trade-notes-input').value.trim();
+  state.trades.push({ id: Date.now(), instrument, dir, pnl, notes, date: TODAY });
+  saveAll();
+  closeModal('trade-modal');
+  renderTrades();
+  updateTradeKPIs();
+}
+
+function renderTrades() {
+  const todayTrades = state.trades.filter(t => t.date === TODAY);
+  const el = document.getElementById('trade-list');
+  if (!todayTrades.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">No trades logged today</div></div>';
+    return;
+  }
+  el.innerHTML = todayTrades.map(t => `
+    <div class="item-row">
+      <div class="item-avatar" style="background:${t.pnl >= 0 ? 'var(--green-dim)' : 'var(--red-dim)'};color:${t.pnl >= 0 ? 'var(--green)' : 'var(--red)'}">${t.dir === 'LONG' ? '↑' : '↓'}</div>
+      <div class="item-info">
+        <div class="item-name">${escHtml(t.instrument)} ${t.dir}</div>
+        <div class="item-sub">${escHtml(t.notes) || 'No notes'}</div>
+      </div>
+      <div class="item-right">
+        <div class="item-value ${t.pnl >= 0 ? 'pnl-positive' : 'pnl-negative'}">${fmt$(t.pnl)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateTradeKPIs() {
+  const todayTrades = state.trades.filter(t => t.date === TODAY);
+  const todayPnl = todayTrades.reduce((s,t) => s+t.pnl, 0);
+
+  const monthStart = TODAY.slice(0,7) + '-01';
+  const monthTrades = state.trades.filter(t => t.date >= monthStart);
+  const monthPnl = monthTrades.reduce((s,t) => s+t.pnl, 0);
+
+  const wins = state.trades.filter(t => t.pnl > 0).length;
+  const winRate = state.trades.length ? Math.round(wins / state.trades.length * 100) : 0;
+  const fundedAccounts = state.accounts.filter(a => a.status === 'funded').length;
+
+  document.getElementById('trade-today-pnl').textContent = fmt$(todayPnl);
+  document.getElementById('trade-today-pnl').className = 'kpi-value ' + (todayPnl >= 0 ? 'pnl-positive' : 'pnl-negative');
+  document.getElementById('trade-month-pnl').textContent = fmt$(monthPnl);
+  document.getElementById('trade-month-pnl').className = 'kpi-value ' + (monthPnl >= 0 ? 'pnl-positive' : 'pnl-negative');
+  document.getElementById('trade-winrate').textContent = winRate + '%';
+  document.getElementById('trade-accounts').textContent = fundedAccounts;
+}
+
+function renderTrading() {
+  initDiscipline();
+  updateTradeKPIs();
+  renderDiscScore();
+  renderAccounts();
+  renderTrades();
+}
+
+// ══════════════════════════════════════════
+// FITNESS
+// ══════════════════════════════════════════
+function addWorkout() {
+  const type = document.getElementById('workout-type-input').value;
+  const duration = parseInt(document.getElementById('workout-duration-input').value) || 0;
+  const notes = document.getElementById('workout-notes-input').value.trim();
+  state.workouts.push({ id: Date.now(), type, duration, notes, date: TODAY });
+  saveAll();
+  closeModal('workout-modal');
+  renderFitness();
+}
+
+function addSleep() {
+  const hours = parseFloat(document.getElementById('sleep-hours-input').value) || 0;
+  const quality = document.getElementById('sleep-quality-input').value;
+  // Remove today's entry if exists
+  state.sleep = state.sleep.filter(s => s.date !== TODAY);
+  state.sleep.push({ id: Date.now(), hours, quality, date: TODAY });
+  saveAll();
+  closeModal('sleep-modal');
+  renderFitness();
+}
+
+function addWeight() {
+  const kg = parseFloat(document.getElementById('weight-input').value) || 0;
+  if (!kg) return;
+  state.weights.push({ id: Date.now(), kg, date: TODAY });
+  saveAll();
+  closeModal('weight-modal');
+  renderFitness();
+}
+
+function getWeekStart() {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const mon = new Date(d.setDate(diff));
+  return mon.toISOString().split('T')[0];
+}
+
+function renderWorkouts() {
+  const recent = [...state.workouts].sort((a,b) => b.date.localeCompare(a.date)).slice(0, 10);
+  const el = document.getElementById('workout-list');
+  if (!recent.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🏋️</div><div class="empty-text">No workouts logged yet</div></div>';
+    return;
+  }
+  el.innerHTML = recent.map(w => `
+    <div class="workout-entry">
+      <div class="workout-icon">${w.type.split(' ')[0]}</div>
+      <div class="item-info">
+        <div class="item-name">${escHtml(w.type)}</div>
+        <div class="item-sub">${w.duration ? w.duration + ' min' : ''}${w.notes ? ' • ' + escHtml(w.notes) : ''}</div>
+      </div>
+      <div class="item-right">
+        <div class="item-label">${w.date === TODAY ? 'Today' : w.date}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderSleep() {
+  const recent7 = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const ds = d.toISOString().split('T')[0];
+    const entry = state.sleep.find(s => s.date === ds);
+    const label = d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0,2);
+    recent7.push({ ds, label, hours: entry ? entry.hours : 0 });
+  }
+
+  const el = document.getElementById('sleep-list');
+  if (!state.sleep.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">😴</div><div class="empty-text">No sleep data logged</div></div>';
+    return;
+  }
+
+  const maxH = 10;
+  el.innerHTML = recent7.map(d => `
+    <div class="sleep-bar-container">
+      <div class="sleep-day">${d.label}</div>
+      <div class="sleep-bar">
+        <div class="sleep-fill" style="width:${(d.hours / maxH * 100)}%"></div>
+      </div>
+      <div class="sleep-hours" style="color:${d.hours >= 7 ? 'var(--green)' : d.hours > 0 ? 'var(--yellow)' : 'var(--text3)'}">${d.hours > 0 ? d.hours + 'h' : '—'}</div>
+    </div>
+  `).join('');
+}
+
+function renderWeightChart() {
+  const el = document.getElementById('weight-chart-area');
+  if (!state.weights.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">⚖️</div><div class="empty-text">No weight data yet</div></div>';
+    return;
+  }
+  const recent = state.weights.slice(-14);
+  const vals = recent.map(w => w.kg);
+  const min = Math.min(...vals) - 1;
+  const max = Math.max(...vals) + 1;
+  const range = max - min;
+
+  el.innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:4px;height:80px;padding:0 4px;margin-bottom:8px">
+      ${recent.map(w => {
+        const h = Math.max(4, ((w.kg - min) / range) * 70);
+        return `<div class="weight-bar" style="height:${h}px;flex:1" title="${w.kg} kg on ${w.date}"></div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3)">
+      <span>${recent[0]?.date}</span>
+      <span style="color:var(--text2);font-family:var(--mono);font-weight:700">${vals[vals.length-1]} kg</span>
+      <span>${recent[recent.length-1]?.date}</span>
+    </div>
+  `;
+}
+
+function renderFitness() {
+  const weekStart = getWeekStart();
+  const weekWorkouts = state.workouts.filter(w => w.date >= weekStart).length;
+
+  // Avg sleep last 7 days
+  const last7 = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    last7.push(d.toISOString().split('T')[0]);
+  }
+  const sleepLast7 = state.sleep.filter(s => last7.includes(s.date));
+  const avgSleep = sleepLast7.length ? (sleepLast7.reduce((s,e) => s+e.hours, 0) / sleepLast7.length).toFixed(1) : 0;
+
+  // Weight
+  const latestW = state.weights[state.weights.length - 1];
+  const prevW = state.weights[state.weights.length - 2];
+  const delta = latestW && prevW ? (latestW.kg - prevW.kg) : null;
+
+  // Streak
+  let streak = 0;
+  for (let i = 0; i <= 30; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const ds = d.toISOString().split('T')[0];
+    if (state.workouts.some(w => w.date === ds)) streak++;
+    else if (i > 0) break;
+  }
+
+  document.getElementById('fit-week-workouts').innerHTML = weekWorkouts + '<span style="font-size:14px">/5</span>';
+  document.getElementById('fit-workout-bar').style.width = (weekWorkouts / 5 * 100) + '%';
+  document.getElementById('fit-avg-sleep').textContent = avgSleep + 'h';
+  document.getElementById('fit-weight').textContent = latestW ? latestW.kg + ' kg' : '—';
+  document.getElementById('fit-weight-delta').textContent = delta !== null ? (delta >= 0 ? '+' : '') + delta.toFixed(1) + ' kg vs prev' : 'no data';
+  document.getElementById('fit-streak').textContent = streak;
+
+  renderWorkouts();
+  renderSleep();
+  renderWeightChart();
+}
+
+// ══════════════════════════════════════════
+// DAILY PLAN
+// ══════════════════════════════════════════
+const TEMPLATES = {
+  trader: [
+    { time:'05:30', title:'Wake up & hydrate', desc:'Morning water, sunlight', type:'morning' },
+    { time:'06:00', title:'Pre-market prep', desc:'Review overnight moves, news, plan', type:'trading' },
+    { time:'07:00', title:'Workout', desc:'Gym or home workout', type:'fitness' },
+    { time:'08:30', title:'Breakfast & review', desc:'Eat, finalize trading plan', type:'break' },
+    { time:'09:30', title:'Market open — Trading', desc:'Execute A+ setups only', type:'trading' },
+    { time:'12:00', title:'Lunch & debrief', desc:'Review morning trades', type:'break' },
+    { time:'13:00', title:'Business tasks', desc:'Emails, leads, follow-ups', type:'work' },
+    { time:'15:00', title:'Afternoon trading', desc:'Afternoon session', type:'trading' },
+    { time:'16:30', title:'Market close — Journal', desc:'Fill trade journal', type:'trading' },
+    { time:'18:00', title:'Admin & planning', desc:'Review tomorrow', type:'work' },
+    { time:'21:00', title:'Wind down', desc:'No screens, reading', type:'evening' },
+    { time:'22:30', title:'Sleep', desc:'Lights out', type:'evening' },
+  ],
+  focus: [
+    { time:'07:00', title:'Morning routine', desc:'Stretch, journal, coffee', type:'morning' },
+    { time:'08:00', title:'Deep work block #1', desc:'Most important task', type:'work' },
+    { time:'10:30', title:'Short break', desc:'Walk, coffee', type:'break' },
+    { time:'10:45', title:'Deep work block #2', desc:'Second priority task', type:'work' },
+    { time:'13:00', title:'Lunch', desc:'Step away from screen', type:'break' },
+    { time:'14:00', title:'Admin & comms', desc:'Email, Slack, calls', type:'work' },
+    { time:'16:00', title:'Workout', desc:'Fitness session', type:'fitness' },
+    { time:'18:00', title:'Learning block', desc:'Read, course, skill building', type:'work' },
+    { time:'20:00', title:'Dinner & relax', desc:'Family time', type:'evening' },
+    { time:'22:00', title:'Sleep prep', desc:'Journal, no screens', type:'evening' },
+  ],
+  recovery: [
+    { time:'08:00', title:'Slow morning', desc:'No alarm, gentle wake up', type:'morning' },
+    { time:'09:00', title:'Light walk', desc:'30 min outside', type:'fitness' },
+    { time:'10:00', title:'Breakfast & reading', desc:'Relax, no work', type:'break' },
+    { time:'12:00', title:'Meal prep / cooking', desc:'Healthy food for the week', type:'break' },
+    { time:'14:00', title:'Nap or rest', desc:'30-60 min', type:'break' },
+    { time:'16:00', title:'Gentle stretch / yoga', desc:'Recovery movement', type:'fitness' },
+    { time:'18:00', title:'Dinner with family', desc:'Quality time', type:'evening' },
+    { time:'20:00', title:'Review & plan week', desc:'Weekly goals review', type:'work' },
+    { time:'22:00', title:'Early sleep', desc:'Recover fully', type:'evening' },
+  ]
+};
+
+function loadTemplate(name) {
+  if (!TEMPLATES[name]) return;
+  if (state.timeblocks.length > 0) {
+    if (!confirm('Replace current time blocks with template?')) return;
+  }
+  state.timeblocks = TEMPLATES[name].map((b, i) => ({
+    ...b,
+    id: Date.now() + i,
+    done: false,
+    date: TODAY
+  }));
+  saveAll();
+  renderPlan();
+}
+
+function addTimeBlock() {
+  const time = document.getElementById('block-time-input').value || '09:00';
+  const title = document.getElementById('block-title-input').value.trim();
+  const desc = document.getElementById('block-desc-input').value.trim();
+  const type = document.getElementById('block-type-input').value;
+  if (!title) return;
+  state.timeblocks.push({ id: Date.now(), time, title, desc, type, done: false, date: TODAY });
+  state.timeblocks.sort((a,b) => a.time.localeCompare(b.time));
+  saveAll();
+  document.getElementById('block-title-input').value = '';
+  document.getElementById('block-desc-input').value = '';
+  closeModal('block-modal');
+  renderPlan();
+}
+
+function toggleBlock(id) {
+  const b = state.timeblocks.find(b => b.id === id);
+  if (b) { b.done = !b.done; saveAll(); renderPlan(); }
+}
+
+function renderPlan() {
+  const todayBlocks = state.timeblocks.filter(b => b.date === TODAY);
+  const done = todayBlocks.filter(b => b.done).length;
+  document.getElementById('plan-progress-label').textContent = `${done}/${todayBlocks.length} done`;
+
+  const el = document.getElementById('plan-list');
+  if (!todayBlocks.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">🗓️</div><div class="empty-text">Add time blocks or load a template</div></div>';
+    return;
+  }
+
+  const now = new Date();
+  const nowTime = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+
+  el.innerHTML = todayBlocks.map((b, idx) => {
+    const nextTime = todayBlocks[idx+1]?.time;
+    const isCurrent = b.time <= nowTime && (!nextTime || nowTime < nextTime);
+    return `
+      <div class="timeblock ${b.type} ${b.done ? 'done' : ''} ${isCurrent ? 'current' : ''}">
+        <div class="timeblock-time">${b.time}</div>
+        <div class="timeblock-line"></div>
+        <div class="timeblock-content" onclick="toggleBlock(${b.id})">
+          <div class="timeblock-title">${escHtml(b.title)}</div>
+          ${b.desc ? `<div class="timeblock-desc">${escHtml(b.desc)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════
+function fmt$(n) {
+  const abs = Math.abs(n);
+  const str = abs >= 1000 ? '$' + (abs/1000).toFixed(1) + 'k' : '$' + abs.toFixed(0);
+  return (n >= 0 ? '+' : '-') + str;
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ══════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════
+initDateTime();
+initDiscipline();
+renderDashboard();
+
+// Seed sample data if brand new
+if (!localStorage.getItem('puliOS_seeded')) {
+  localStorage.setItem('puliOS_seeded', '1');
+
+  state.tasks = [
+    { id: 1, text: 'Review pre-market NQ levels', cat: 'trading', done: false, date: TODAY },
+    { id: 2, text: 'Follow up with client on proposal', cat: 'business', done: false, date: TODAY },
+    { id: 3, text: 'Morning workout — push day', cat: 'fitness', done: false, date: TODAY },
+    { id: 4, text: 'Fill trade journal', cat: 'trading', done: false, date: TODAY },
+  ];
+
+  state.leads = [
+    { id: 10, name: 'Alex Novak / TechFlow', value: 5000, status: 'hot', notes: 'Interested in premium plan', date: TODAY },
+    { id: 11, name: 'Maria Chen', value: 2500, status: 'warm', notes: 'Demo call scheduled', date: TODAY },
+    { id: 12, name: 'StartupXY', value: 10000, status: 'cold', notes: 'Initial contact made', date: TODAY },
+  ];
+
+  state.accounts = [
+    { id: 20, name: 'FTMO #1', firm: 'FTMO', size: 100000, balance: 103250, status: 'funded' },
+    { id: 21, name: 'MyFF Eval', firm: 'MyForexFunds', size: 50000, balance: 49100, status: 'evaluation' },
+  ];
+
+  state.trades = [
+    { id: 30, instrument: 'NQ', dir: 'LONG', pnl: 375, notes: 'Clean breakout setup, held runners', date: TODAY },
+    { id: 31, instrument: 'MNQ', dir: 'SHORT', pnl: -125, notes: 'Stopped out, market reversed', date: TODAY },
+  ];
+
+  state.workouts = [
+    { id: 40, type: '🏋️ Lifting', duration: 60, notes: 'Bench PR 100kg', date: TODAY },
+  ];
+
+  state.sleep = [
+    { id: 50, hours: 7.5, quality: 'good', date: TODAY },
+  ];
+
+  state.weights = [
+    { id: 60, kg: 82.5, date: TODAY },
+  ];
+
+  state.meetings = [
+    { id: 70, title: 'Strategy Call', with: 'Alex Novak', time: '15:00', date: TODAY },
+  ];
+
+  state.timeblocks = TEMPLATES.trader.map((b, i) => ({
+    ...b, id: 100 + i, done: false, date: TODAY
+  }));
+
+  saveAll();
+  renderDashboard();
+}
+</script>
+</body>
+</html>
