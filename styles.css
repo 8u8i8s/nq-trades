@@ -21,6 +21,7 @@
   --warn: #fab219;
   --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --nav-h: 62px;
+  --safe-b: min(env(safe-area-inset-bottom, 0px), 34px);
   --radius: 14px;
   --radius-sm: 9px;
 }
@@ -43,7 +44,7 @@ body {
   min-height: 100vh;
   min-height: 100svh;
   display: flex; align-items: center; justify-content: center;
-  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + env(safe-area-inset-bottom));
+  padding: calc(24px + env(safe-area-inset-top)) 24px calc(24px + var(--safe-b));
 }
 .auth-card {
   width: 100%; max-width: 380px;
@@ -115,14 +116,14 @@ textarea { resize: vertical; min-height: 90px; }
 }
 
 main { position: relative; }
-.section { display: none; padding: 18px 16px calc(var(--nav-h) + env(safe-area-inset-bottom) + 32px); max-width: 860px; margin: 0 auto; }
+.section { display: none; padding: 18px 16px calc(var(--nav-h) + var(--safe-b) + 32px); max-width: 860px; margin: 0 auto; }
 .section.active { display: block; }
 
 /* ── BOTTOM NAV ── */
 .bottomnav {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
-  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(var(--nav-h) + var(--safe-b));
+  padding-bottom: var(--safe-b);
   background: rgba(13,13,13,0.92);
   backdrop-filter: blur(16px);
   border-top: 1px solid var(--border);
@@ -289,7 +290,7 @@ main { position: relative; }
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius) var(--radius) 0 0;
-  padding: 22px 20px calc(22px + env(safe-area-inset-bottom));
+  padding: 22px 20px calc(22px + var(--safe-b));
 }
 @media (min-width: 640px) { .modal { border-radius: var(--radius); } }
 .modal h3 { font-size: 17px; margin-bottom: 16px; }
@@ -299,7 +300,7 @@ main { position: relative; }
 
 /* ── TOAST ── */
 .toast {
-  position: fixed; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 16px); left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: calc(var(--nav-h) + var(--safe-b) + 16px); left: 50%; transform: translateX(-50%);
   z-index: 300;
   background: var(--surface3);
   border: 1px solid var(--border);
