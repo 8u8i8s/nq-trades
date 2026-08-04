@@ -406,7 +406,8 @@ function showView(id) {
   $('#view-' + id).classList.add('active');
   $$('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === id));
   render();
-  window.scrollTo(0, 0);
+  const m = $('main');
+  if (m) m.scrollTo(0, 0);
 }
 $$('.nav-btn').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
