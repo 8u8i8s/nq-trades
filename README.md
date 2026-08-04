@@ -15,9 +15,10 @@ Financie, net worth, denné pravidlá, ciele, žurnál a fitness v jednom. PWA �
 ## Sprevádzkovanie (raz, ~5 minút)
 
 1. **Databáza** — v [Supabase Dashboarde](https://supabase.com/dashboard) otvor svoj projekt → *SQL Editor* → vlož obsah `supabase/migrations/20260804_puli_life_schema.sql` → **Run**. (Ak už tabuľky existujú, tento krok preskoč.)
-2. **Kľúč** — *Project Settings → API Keys* → skopíruj **anon / publishable** kľúč a vlož ho do `config.js` (pole `key`). Tento kľúč je bezpečné zverejniť — dáta chráni prihlásenie + Row Level Security.
-3. **GitHub Pages** — *Settings → Pages* → Deploy from branch → `main` → `/ (root)`.
-4. Otvor stránku, klikni **Registrovať**, potvrď e-mail a prihlás sa.
+2. **Otvor stránku** — pri prvom spustení si appka sama vypýta **anon / publishable** kľúč (*Project Settings → API Keys*) a uloží si ho. Tento kľúč je bezpečné zverejniť — dáta chráni prihlásenie + Row Level Security. (Voliteľne ho môžeš natrvalo vložiť do `config.js`, potom sa obrazovka nezobrazí.)
+3. Klikni **Registrovať**, potvrď e-mail a prihlás sa.
+
+GitHub Pages sa nasadzuje z vetvy `main` (Settings → Pages → Deploy from branch → `main` → `/ (root)`).
 
 ## Na mobile
 

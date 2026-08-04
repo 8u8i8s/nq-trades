@@ -1,11 +1,49 @@
 /* ══ PULI LIFE — app ══ */
 'use strict';
 
-if (!window.PULI_CONFIG || !window.PULI_CONFIG.key || window.PULI_CONFIG.key.startsWith('DOPLN')) {
-  document.body.innerHTML = '<div style="max-width:420px;margin:80px auto;padding:24px;font-family:system-ui;color:#e2e8f0;background:#1a1a19;border:1px solid rgba(255,255,255,.1);border-radius:14px"><h2 style="margin-bottom:12px">Chýba konfigurácia</h2><p style="font-size:14px;color:#c3c2b7;line-height:1.5">Do súboru <code>config.js</code> doplň Supabase anon/publishable kľúč (Supabase Dashboard → Project Settings → API Keys) a znova nahraj stránku.</p></div>';
+const CFG = window.PULI_CONFIG || {};
+const keyFromConfig = CFG.key && !CFG.key.startsWith('DOPLN');
+const SB_KEY = keyFromConfig ? CFG.key : localStorage.getItem('puli_sb_key');
+if (!SB_KEY) {
+  document.body.innerHTML = `
+    <div class="auth-screen"><div class="auth-card">
+      <div class="auth-logo">PULI <span>LIFE</span></div>
+      <p class="auth-sub">Prvé spustenie — pripoj svoju Supabase databázu (spraví sa to len raz).</p>
+      <ol style="font-size:13px;color:#c3c2b7;line-height:1.7;margin:0 0 18px 18px">
+        <li>Otvor <a href="https://supabase.com/dashboard/project/sozcumhzaqfakowlbtla/settings/api-keys" target="_blank" style="color:#3987e5">Supabase → API Keys</a></li>
+        <li>Skopíruj <b>anon / publishable</b> kľúč</li>
+        <li>Vlož ho sem:</li>
+      </ol>
+      <form id="setup-form">
+        <label>Supabase kľúč
+          <input id="setup-key" required placeholder="sb_publishable_… alebo eyJ…" autocomplete="off">
+        </label>
+        <button type="submit" class="btn btn-primary">Uložiť a pokračovať</button>
+        <p class="auth-msg" style="color:#898781">Kľúč sa uloží v tomto prehliadači. Dáta chráni prihlásenie + Row Level Security, nie tento kľúč.</p>
+      </form>
+    </div></div>`;
+  document.getElementById('setup-form').onsubmit = e => {
+    e.preventDefault();
+    const k = document.getElementById('setup-key').value.trim();
+    if (!k) return;
+    localStorage.setItem('puli_sb_key', k);
+    location.reload();
+  };
   throw new Error('Missing Supabase config');
 }
-const sb = window.supabase.createClient(window.PULI_CONFIG.url, window.PULI_CONFIG.key);
+const sb = window.supabase.createClient(CFG.url, SB_KEY);
+if (!keyFromConfig) {
+  // key came from localStorage — offer a way to re-enter it if it's wrong
+  const authCard = document.querySelector('.auth-card');
+  if (authCard) {
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn btn-ghost';
+    reset.textContent = 'Zmeniť Supabase kľúč';
+    reset.onclick = () => { localStorage.removeItem('puli_sb_key'); location.reload(); };
+    authCard.appendChild(reset);
+  }
+}
 
 /* ── helpers ── */
 const $ = (s, el) => (el || document).querySelector(s);
