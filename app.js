@@ -54,6 +54,7 @@ const EUR2 = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR'
 const fmtEur = v => EUR.format(v);
 const fmtEur2 = v => EUR2.format(v);
 const signEur = v => (v > 0 ? '+' : '') + EUR2.format(v);
+const signEur0 = v => (v > 0 ? '+' : '') + EUR.format(v);
 
 const todayISO = () => {
   const d = new Date();
@@ -131,14 +132,22 @@ const fmtAxis = v => {
 /* line chart: points = [{label, value}] */
 function lineChart(container, points, opts = {}) {
   container.innerHTML = '';
-  if (!points || points.length < 2) {
+  if (!points || !points.length) {
     container.innerHTML = '<div class="chart-empty">' + (opts.empty || 'Zatiaľ málo dát na graf.') + '</div>';
     return;
   }
+  let singlePoint = false;
+  if (points.length === 1) {
+    // jediný zápis — rovná čiara s bodom na konci, nech graf nie je prázdny
+    points = [{ ...points[0], label: '' }, points[0]];
+    singlePoint = true;
+  }
   const W = 640, H = 220, padL = 44, padR = 12, padT = 12, padB = 26;
   const vals = points.map(p => p.value);
-  const minV = opts.zero ? Math.min(0, ...vals) : Math.min(...vals);
-  const { lo, hi, ticks } = niceTicks(minV, Math.max(...vals), 4);
+  let minV = opts.zero ? Math.min(0, ...vals) : Math.min(...vals);
+  let maxV = Math.max(...vals);
+  if (minV === maxV) { const pad = Math.max(1, Math.abs(maxV) * 0.08); minV -= pad; maxV += pad; }
+  const { lo, hi, ticks } = niceTicks(minV, maxV, 4);
   const X = i => padL + (i / (points.length - 1)) * (W - padL - padR);
   const Y = v => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
   const color = opts.color || C.blue;
@@ -162,6 +171,7 @@ function lineChart(container, points, opts = {}) {
       ${g}${xl}
       <path d="${area}" fill="${color}" opacity="0.10"/>
       <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${singlePoint ? `<circle cx="${X(n - 1)}" cy="${Y(points[n - 1].value)}" r="4.5" fill="${color}" stroke="#1a1a19" stroke-width="2"/>` : ''}
       <line id="ch-cross" x1="0" y1="${padT}" x2="0" y2="${H - padB}" stroke="${C.muted}" stroke-width="1" stroke-dasharray="3 3" style="display:none"/>
       <circle id="ch-dot" r="4.5" fill="${color}" stroke="#1a1a19" stroke-width="2" style="display:none"/>
     </svg>
@@ -437,9 +447,9 @@ function renderOverview() {
     <div class="tiles">
       <div class="tile"><div class="tile-label">Dnešný P&L</div>
         <div class="tile-value ${todayPnl ? (Number(todayPnl.amount) >= 0 ? 'pos' : 'neg') : 'muted'}">${todayPnl ? signEur(Number(todayPnl.amount)) : '—'}</div>
-        <div class="tile-delta">mesiac: <span class="${monthPnl >= 0 ? 'pos' : 'neg'}">${signEur(monthPnl)}</span></div></div>
+        <div class="tile-delta">mesiac: <span class="${monthPnl >= 0 ? 'pos' : 'neg'}">${signEur0(monthPnl)}</span></div></div>
       <div class="tile"><div class="tile-label">Cashflow ${MONTHS_SK[Number(ym.slice(5)) - 1]}</div>
-        <div class="tile-value ${inc - exp >= 0 ? 'pos' : 'neg'}">${signEur(inc - exp)}</div>
+        <div class="tile-value ${inc - exp >= 0 ? 'pos' : 'neg'}">${signEur0(inc - exp)}</div>
         <div class="tile-delta">+${fmtEur(inc)} / −${fmtEur(exp)}</div></div>
       <div class="tile"><div class="tile-label">Pravidlá dnes</div>
         <div class="tile-value">${doneToday.length}/${S.habits.length}</div>
