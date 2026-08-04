@@ -1,5 +1,5 @@
-const CACHE = 'puli-life-v1';
-const SHELL = ['./', './index.html', './styles.css', './app.js', './config.js', './vendor/supabase.min.js', './manifest.json', './icon-192.png', './icon-512.png'];
+const CACHE = 'puli-life-v2';
+const SHELL = ['./', './index.html', './styles.css?v=2', './app.js?v=2', './config.js?v=2', './vendor/supabase.min.js', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
