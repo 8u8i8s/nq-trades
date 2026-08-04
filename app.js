@@ -74,6 +74,8 @@ const fmtDateShort = iso => {
   return d.getDate() + '.' + (d.getMonth() + 1) + '.';
 };
 const MONTHS_SK = ['Jan', 'Feb', 'Mar', 'Apr', 'Máj', 'Jún', 'Júl', 'Aug', 'Sep', 'Okt', 'Nov', 'Dec'];
+const DAYS_SK = ['Po', 'Ut', 'St', 'Št', 'Pi', 'So', 'Ne'];
+const isoWeekday = iso => (new Date(iso + 'T12:00:00').getDay() + 6) % 7 + 1; // 1=Po .. 7=Ne
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 let toastTimer;
@@ -333,6 +335,7 @@ const S = {
   user: null,
   accounts: [], snapshots: [], transactions: [], financeGoals: [], pnl: [],
   habits: [], habitLogs: [], goals: [], goalSteps: [], journal: [], fitness: [],
+  tasks: [], taskLogs: [],
   loaded: false
 };
 
@@ -363,6 +366,109 @@ function netWorthNow() {
   return nw.length ? nw[nw.length - 1].value : 0;
 }
 
+/* dnešné úlohy: jednorazové na dnes (+ zmeškané) a opakované, ktorých deň je dnes */
+function tasksForToday() {
+  const today = todayISO(), wd = isoWeekday(today);
+  const out = [];
+  for (const t of S.tasks) {
+    if (t.kind === 'once') {
+      if (!t.date) continue;
+      if (t.date === today) out.push({ t, done: t.done, overdue: false });
+      else if (t.date < today && !t.done) out.push({ t, done: false, overdue: true });
+    } else if ((t.weekdays || []).includes(wd)) {
+      out.push({ t, done: S.taskLogs.some(l => l.task_id === t.id && l.date === today), overdue: false });
+    }
+  }
+  return out.sort((a, b) => (a.t.time || '99:99').localeCompare(b.t.time || '99:99'));
+}
+
+function taskRow({ t, done, overdue }, manage) {
+  const sub = [
+    t.time ? '🕐 ' + t.time : '',
+    overdue ? 'mešká od ' + fmtDate(t.date) : '',
+    t.kind === 'recurring' ? (t.weekdays || []).map(d => DAYS_SK[d - 1]).join(' ') : ''
+  ].filter(Boolean).join(' · ');
+  return `<div class="habit-row">
+    <button class="habit-check ${done ? 'done' : ''}" onclick="toggleTask('${t.id}')">✓</button>
+    <div class="row-main">
+      <span class="habit-name ${done ? 'done' : ''}" style="display:block">${esc(t.title)}</span>
+      ${sub ? `<span class="row-sub ${overdue ? 'neg' : ''}">${sub}</span>` : ''}
+    </div>
+    ${manage ? `<button class="icon-btn" onclick="deleteTask('${t.id}')" title="Zmazať">✕</button>` : ''}
+  </div>`;
+}
+
+function renderTaskList(container, manage) {
+  if (!S.tasksReady) {
+    container.innerHTML = '<p class="muted small">Checklist úloh potrebuje malé rozšírenie databázy — spusti SQL zo súboru <b>supabase/migrations/20260804_tasks.sql</b> (návod v README).</p>';
+    return;
+  }
+  const list = tasksForToday();
+  container.innerHTML = list.length
+    ? list.map(x => taskRow(x, manage)).join('')
+    : '<p class="muted small">Na dnes žiadne úlohy. Pridaj jednorazovú na konkrétny deň alebo opakovanú na vybrané dni v týždni.</p>';
+}
+
+window.toggleTask = async id => {
+  const t = S.tasks.find(x => x.id === id);
+  const today = todayISO();
+  if (t.kind === 'once') {
+    await guard(sb.from('tasks').update({ done: !t.done }).eq('id', id));
+  } else {
+    const log = S.taskLogs.find(l => l.task_id === id && l.date === today);
+    if (log) await guard(sb.from('task_logs').delete().eq('id', log.id));
+    else await guard(sb.from('task_logs').insert({ user_id: S.user.id, task_id: id, date: today }));
+  }
+  await refresh();
+};
+
+window.deleteTask = async id => {
+  if (!confirm('Zmazať úlohu?')) return;
+  await guard(sb.from('tasks').delete().eq('id', id), 'Zmazané');
+  await refresh();
+};
+
+window.openTaskModal = () => {
+  openModal(`<h3>Nová úloha</h3>
+    <form id="f-task">
+      <label>Čo treba spraviť <input name="title" required autofocus placeholder="napr. Vybaviť poistku"></label>
+      <label>Typ <select name="kind" id="task-kind">
+        <option value="once">Jednorazová (konkrétny deň)</option>
+        <option value="recurring">Opakovaná (vybrané dni)</option>
+      </select></label>
+      <label id="task-date-wrap">Dátum <input name="date" type="date" value="${todayISO()}"></label>
+      <div id="task-days-wrap" style="display:none">
+        <span class="small" style="color:var(--text2)">Dni v týždni</span>
+        <div class="day-chips">${DAYS_SK.map((d, i) => `<button type="button" class="day-chip" data-d="${i + 1}">${d}</button>`).join('')}</div>
+      </div>
+      <label class="mt">Čas (voliteľné) <input name="time" type="time"></label>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">Zrušiť</button>
+        <button type="submit" class="btn btn-primary">Uložiť</button>
+      </div>
+    </form>`);
+  $('#task-kind').onchange = e => {
+    const rec = e.target.value === 'recurring';
+    $('#task-date-wrap').style.display = rec ? 'none' : '';
+    $('#task-days-wrap').style.display = rec ? '' : 'none';
+  };
+  $$('.day-chip').forEach(c => c.onclick = () => c.classList.toggle('on'));
+  $('#f-task').onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const kind = f.get('kind');
+    const weekdays = $$('.day-chip.on').map(c => Number(c.dataset.d));
+    if (kind === 'recurring' && !weekdays.length) { toast('Vyber aspoň jeden deň'); return; }
+    await guard(sb.from('tasks').insert({
+      user_id: S.user.id, title: f.get('title'), kind,
+      date: kind === 'once' ? f.get('date') : null,
+      weekdays: kind === 'recurring' ? weekdays : null,
+      time: f.get('time') || null
+    }), 'Úloha pridaná');
+    closeModal(); await refresh();
+  };
+};
+
 function habitStreak(habitId) {
   const dates = new Set(S.habitLogs.filter(l => l.habit_id === habitId).map(l => l.date));
   let d = todayISO(), streak = 0;
@@ -375,7 +481,7 @@ function habitStreak(habitId) {
 async function loadAll() {
   const uid = S.user.id;
   const q = (t, sel, ord) => sb.from(t).select(sel || '*').order(ord || 'created_at', { ascending: false });
-  const [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit] = await Promise.all([
+  const [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit, tasks, tlog] = await Promise.all([
     sb.from('accounts').select('*').eq('archived', false).order('sort_order'),
     sb.from('account_snapshots').select('*'),
     sb.from('transactions').select('*').order('date', { ascending: false }).limit(400),
@@ -386,11 +492,17 @@ async function loadAll() {
     sb.from('goals').select('*').order('created_at'),
     sb.from('goal_steps').select('*').order('sort_order'),
     sb.from('journal').select('*').order('date', { ascending: false }).limit(120),
-    sb.from('fitness_logs').select('*').order('date', { ascending: false }).limit(300)
+    sb.from('fitness_logs').select('*').order('date', { ascending: false }).limit(300),
+    sb.from('tasks').select('*').eq('active', true).order('created_at'),
+    sb.from('task_logs').select('*').gte('date', addDays(todayISO(), -30))
   ]);
   for (const r of [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit]) {
     if (r.error) { console.error(r.error); toast('Chyba načítania: ' + r.error.message); }
   }
+  // tasks tables may not exist yet (migration pending) — degrade quietly
+  S.tasks = tasks.error ? [] : (tasks.data || []);
+  S.taskLogs = tlog.error ? [] : (tlog.data || []);
+  S.tasksReady = !tasks.error;
   S.accounts = acc.data || []; S.snapshots = snap.data || []; S.transactions = tx.data || [];
   S.financeGoals = fg.data || []; S.pnl = pnl.data || []; S.habits = hab.data || [];
   S.habitLogs = hlog.data || []; S.goals = goals.data || []; S.goalSteps = steps.data || [];
@@ -461,6 +573,12 @@ function renderOverview() {
     </div>
 
     <div class="card">
+      <div class="card-head"><span class="card-title">Dnešné úlohy</span>
+        <button class="btn btn-sm btn-primary" onclick="openTaskModal()">+ Úloha</button></div>
+      <div id="ov-tasks"></div>
+    </div>
+
+    <div class="card">
       <div class="card-head"><span class="card-title">Dnešné pravidlá</span>
         <button class="btn btn-sm" onclick="showView('life')">Spravovať</button></div>
       <div id="ov-habits">${S.habits.length ? '' : '<p class="muted small">Zatiaľ žiadne pravidlá — pridaj si ich v sekcii Život.</p>'}</div>
@@ -475,6 +593,7 @@ function renderOverview() {
   const nwPts = nwSeries.slice(-30).map(p => ({ label: fmtDateShort(p.date), tipLabel: fmtDate(p.date), value: p.value }));
   lineChart($('#ov-nw-chart'), nwPts, { empty: 'Pridaj účty a zapíš zostatky — graf sa vykreslí sám.' });
 
+  renderTaskList($('#ov-tasks'), false);
   renderHabitList($('#ov-habits'));
   renderGoalsMini($('#ov-goals'));
 }
@@ -849,6 +968,12 @@ function renderLife() {
   const today = todayISO();
   el.innerHTML = `
     <div class="card">
+      <div class="card-head"><span class="card-title">Dnešné úlohy</span>
+        <button class="btn btn-sm btn-primary" onclick="openTaskModal()">+ Úloha</button></div>
+      <div id="life-tasks"></div>
+      <div id="life-tasks-upcoming"></div>
+    </div>
+    <div class="card">
       <div class="card-head"><span class="card-title">Denné pravidlá</span>
         <button class="btn btn-sm btn-primary" onclick="openHabitModal()">+ Pravidlo</button></div>
       <div id="life-habits">${S.habits.length ? '' : '<p class="muted small">Pravidlá, ktoré chceš dodržiavať každý deň — napr. „Max 2 obchody“, „Tréning“, „Bez alkoholu“. Streak ukazuje, koľko dní po sebe ich držíš.</p>'}</div>
@@ -862,6 +987,23 @@ function renderLife() {
         <button class="btn btn-sm btn-primary" onclick="openGoalModal()">+ Cieľ</button></div>
       <div id="life-goals"></div>
     </div>`;
+
+  renderTaskList($('#life-tasks'), true);
+  if (S.tasksReady) {
+    const upcoming = S.tasks.filter(t => t.kind === 'once' && t.date && t.date > today && !t.done)
+      .sort((a, b) => a.date.localeCompare(b.date)).slice(0, 10);
+    const otherDays = S.tasks.filter(t => t.kind === 'recurring' && !(t.weekdays || []).includes(isoWeekday(today)));
+    let html = '';
+    if (upcoming.length) html += '<p class="small muted" style="margin:14px 0 2px">Naplánované</p>' +
+      upcoming.map(t => `<div class="row"><div class="row-main"><div class="row-title">${esc(t.title)}</div>
+        <div class="row-sub">${fmtDate(t.date)}${t.time ? ' · ' + t.time : ''}</div></div>
+        <button class="icon-btn" onclick="deleteTask('${t.id}')" title="Zmazať">✕</button></div>`).join('');
+    if (otherDays.length) html += '<p class="small muted" style="margin:14px 0 2px">Opakované (iné dni)</p>' +
+      otherDays.map(t => `<div class="row"><div class="row-main"><div class="row-title">${esc(t.title)}</div>
+        <div class="row-sub">${(t.weekdays || []).map(d => DAYS_SK[d - 1]).join(' ')}${t.time ? ' · ' + t.time : ''}</div></div>
+        <button class="icon-btn" onclick="deleteTask('${t.id}')" title="Zmazať">✕</button></div>`).join('');
+    $('#life-tasks-upcoming').innerHTML = html;
+  }
 
   if (S.habits.length) {
     $('#life-habits').innerHTML = S.habits.map(h => {
