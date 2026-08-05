@@ -336,8 +336,12 @@ const S = {
   accounts: [], snapshots: [], transactions: [], financeGoals: [], pnl: [],
   habits: [], habitLogs: [], goals: [], goalSteps: [], journal: [], fitness: [],
   tasks: [], taskLogs: [],
+  metricGoals: [], commitments: [], commitmentCriteria: [],
   loaded: false
 };
+
+const dayDiff = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
+const ACC_TYPES = { cash: 'Hotovosť', bank: 'Banka', crypto: 'Krypto', broker: 'Broker', stocks: 'Akcie', real_estate: 'Nehnuteľnosť', debt: 'Dlh', other: 'Iné' };
 
 /* ── net worth series from snapshots (carry-forward per account) ── */
 function netWorthSeries() {
@@ -364,6 +368,60 @@ function currentBalances() {
 function netWorthNow() {
   const nw = netWorthSeries();
   return nw.length ? nw[nw.length - 1].value : 0;
+}
+
+/* mesačné snapshoty: posledná hodnota net worth v každom mesiaci */
+function monthlyNetWorth() {
+  const byMonth = {};
+  for (const p of netWorthSeries()) byMonth[p.date.slice(0, 7)] = p.value;
+  return Object.entries(byMonth).sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([ym, value]) => ({ ym, label: MONTHS_SK[Number(ym.slice(5)) - 1] + ' ' + ym.slice(2, 4), value }));
+}
+
+/* compliance %: koľko dní z posledných N bolo pravidlo splnené (od jeho vytvorenia) */
+function habitCompliance(habit, days) {
+  const today = todayISO();
+  const created = (habit.created_at || today).slice(0, 10);
+  const from = addDays(today, -(days - 1));
+  const start = created > from ? created : from;
+  const set = new Set(S.habitLogs.filter(l => l.habit_id === habit.id).map(l => l.date));
+  let denom = 0, num = 0;
+  for (let d = start; d <= today; d = addDays(d, 1)) { denom++; if (set.has(d)) num++; }
+  return denom ? { pct: Math.round(num / denom * 100), num, denom } : { pct: 0, num: 0, denom: 0 };
+}
+function overallCompliance(days) {
+  let num = 0, denom = 0;
+  for (const h of S.habits) { const c = habitCompliance(h, days); num += c.num; denom += c.denom; }
+  return denom ? Math.round(num / denom * 100) : null;
+}
+
+/* merateľné ciele: aktuálny stav a tempo voči plánu */
+function metricCurrent(g) {
+  if (g.source === 'workouts') return S.fitness.filter(f => f.workout && f.date >= g.start_date && f.date <= g.deadline).length;
+  return Number(g.current);
+}
+function metricPace(g) {
+  const today = todayISO();
+  const total = Math.max(1, dayDiff(g.start_date, g.deadline) + 1);
+  const elapsed = Math.min(Math.max(dayDiff(g.start_date, today) + 1, 0), total);
+  const cur = metricCurrent(g);
+  const expected = Number(g.target) * elapsed / total;
+  return { cur, diff: cur - expected, daysLeft: Math.max(0, dayDiff(today, g.deadline)) };
+}
+function metricRow(g, manage) {
+  const { cur, diff, daysLeft } = metricPace(g);
+  const target = Number(g.target);
+  const pct = Math.min(100, Math.round(cur / target * 100));
+  const onPlan = diff >= 0;
+  const fmtd = Math.abs(diff) >= 10 ? Math.round(Math.abs(diff)) : Math.abs(diff).toFixed(1).replace('.0', '');
+  return `<div class="row"><div class="row-main">
+    <div class="row-title">${esc(g.name)} <span class="chip ${cur >= target ? 'good' : onPlan ? 'good' : 'warn'}">${cur >= target ? '✓ splnené' : onPlan ? 'na pláne +' + fmtd : 'pozadu o ' + fmtd}</span></div>
+    <div class="progress"><div style="width:${pct}%" class="${pct >= 100 ? 'full' : ''}"></div></div>
+    <div class="row-sub" style="margin-top:5px">${cur}/${target}${g.unit ? ' ' + esc(g.unit) : ''} · do ${fmtDate(g.deadline)} · zostáva ${daysLeft} d</div>
+  </div>
+  ${manage && g.source === 'manual' ? `<button class="btn btn-sm" onclick="bumpMetric('${g.id}')">+1</button>` : ''}
+  ${manage ? `<button class="icon-btn" onclick="deleteMetric('${g.id}')" title="Zmazať">✕</button>` : ''}
+  </div>`;
 }
 
 /* dnešné úlohy: jednorazové na dnes (+ zmeškané) a opakované, ktorých deň je dnes */
@@ -481,7 +539,7 @@ function habitStreak(habitId) {
 async function loadAll() {
   const uid = S.user.id;
   const q = (t, sel, ord) => sb.from(t).select(sel || '*').order(ord || 'created_at', { ascending: false });
-  const [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit, tasks, tlog] = await Promise.all([
+  const [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit, tasks, tlog, mg, com, cc] = await Promise.all([
     sb.from('accounts').select('*').eq('archived', false).order('sort_order'),
     sb.from('account_snapshots').select('*'),
     sb.from('transactions').select('*').order('date', { ascending: false }).limit(400),
@@ -494,7 +552,10 @@ async function loadAll() {
     sb.from('journal').select('*').order('date', { ascending: false }).limit(120),
     sb.from('fitness_logs').select('*').order('date', { ascending: false }).limit(300),
     sb.from('tasks').select('*').eq('active', true).order('created_at'),
-    sb.from('task_logs').select('*').gte('date', addDays(todayISO(), -30))
+    sb.from('task_logs').select('*').gte('date', addDays(todayISO(), -30)),
+    sb.from('metric_goals').select('*').order('created_at'),
+    sb.from('commitments').select('*').eq('active', true).order('created_at'),
+    sb.from('commitment_criteria').select('*').order('sort_order')
   ]);
   for (const r of [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit]) {
     if (r.error) { console.error(r.error); toast('Chyba načítania: ' + r.error.message); }
@@ -503,6 +564,9 @@ async function loadAll() {
   S.tasks = tasks.error ? [] : (tasks.data || []);
   S.taskLogs = tlog.error ? [] : (tlog.data || []);
   S.tasksReady = !tasks.error;
+  S.metricGoals = mg.error ? [] : (mg.data || []);
+  S.commitments = com.error ? [] : (com.data || []);
+  S.commitmentCriteria = cc.error ? [] : (cc.data || []);
   S.accounts = acc.data || []; S.snapshots = snap.data || []; S.transactions = tx.data || [];
   S.financeGoals = fg.data || []; S.pnl = pnl.data || []; S.habits = hab.data || [];
   S.habitLogs = hlog.data || []; S.goals = goals.data || []; S.goalSteps = steps.data || [];
@@ -529,6 +593,115 @@ function render() {
 }
 async function refresh() { await loadAll(); render(); }
 
+/* ── COMMITMENT (kill criteria countdown) ── */
+function commitmentCard() {
+  const today = todayISO();
+  const c = S.commitments[0];
+  if (!c) {
+    return `<div class="card">
+      <div class="card-head"><span class="card-title">Commitment</span>
+        <button class="btn btn-sm btn-primary" onclick="openCommitmentModal()">Nastaviť</button></div>
+      <p class="muted small">60-dňový záväzok s kill criteria — odpočet, ktorý na teba pozerá každý deň.</p>
+    </div>`;
+  }
+  const total = Math.max(1, dayDiff(c.start_date, c.end_date) + 1);
+  const dayNo = Math.min(Math.max(dayDiff(c.start_date, today) + 1, 0), total);
+  const left = Math.max(0, dayDiff(today, c.end_date));
+  const pct = Math.round(dayNo / total * 100);
+  const crit = S.commitmentCriteria.filter(x => x.commitment_id === c.id);
+  const ICON = { pending: '◌', met: '✓', failed: '✕' };
+  return `<div class="card commit-card">
+    <div class="card-head"><span class="card-title">⏳ ${esc(c.title)}</span>
+      <button class="icon-btn" onclick="deleteCommitment('${c.id}')" title="Ukončiť">✕</button></div>
+    <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+      <span class="hero-value" style="white-space:nowrap">Deň ${dayNo}<span class="muted" style="font-size:20px">/${total}</span></span>
+      <span class="card-sub">zostáva ${left} dní · do ${fmtDate(c.end_date)}</span>
+    </div>
+    <div class="progress"><div style="width:${pct}%"></div></div>
+    ${crit.length ? `<div class="crit-list">${crit.map(x =>
+      `<button class="crit-chip ${x.status}" onclick="cycleCriterion('${x.id}')">${ICON[x.status]} ${esc(x.text)}</button>`).join('')}</div>
+      <p class="row-sub" style="margin-top:6px">Ťukni na kritérium: ◌ otvorené → ✓ splnené → ✕ zlyhalo</p>` : ''}
+  </div>`;
+}
+
+window.openCommitmentModal = () => {
+  openModal(`<h3>Nový commitment</h3>
+    <form id="f-com">
+      <label>Názov <input name="title" required autofocus placeholder="napr. 60 dní PULI naplno"></label>
+      <label>Štart <input name="start" type="date" value="${todayISO()}" required></label>
+      <label>Dĺžka (dní) <input name="days" type="number" min="7" max="365" value="60" required></label>
+      <label>Kill criteria — jedno na riadok <textarea name="criteria" placeholder="10 reálnych rozhovorov&#10;aspoň 1 platiaci zákazník&#10;..."></textarea></label>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">Zrušiť</button>
+        <button type="submit" class="btn btn-primary">Spustiť odpočet</button>
+      </div>
+    </form>`);
+  $('#f-com').onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const start = f.get('start');
+    const end = addDays(start, Number(f.get('days')) - 1);
+    const com = await guard(sb.from('commitments').insert({
+      user_id: S.user.id, title: f.get('title'), start_date: start, end_date: end
+    }).select().single());
+    const lines = String(f.get('criteria') || '').split('\n').map(s => s.trim()).filter(Boolean);
+    if (lines.length) await guard(sb.from('commitment_criteria').insert(
+      lines.map((text, i) => ({ user_id: S.user.id, commitment_id: com.id, text, sort_order: i }))));
+    closeModal(); toast('Odpočet beží ⏳'); await refresh();
+  };
+};
+window.cycleCriterion = async id => {
+  const x = S.commitmentCriteria.find(c => c.id === id);
+  const next = { pending: 'met', met: 'failed', failed: 'pending' }[x.status];
+  await guard(sb.from('commitment_criteria').update({ status: next }).eq('id', id));
+  await refresh();
+};
+window.deleteCommitment = async id => {
+  if (!confirm('Ukončiť commitment? (zmizne z prehľadu)')) return;
+  await guard(sb.from('commitments').update({ active: false }).eq('id', id), 'Ukončené');
+  await refresh();
+};
+window.bumpMetric = async id => {
+  const g = S.metricGoals.find(x => x.id === id);
+  const cur = Number(g.current) + 1;
+  await guard(sb.from('metric_goals').update({ current: cur, done: cur >= Number(g.target) }).eq('id', id));
+  await refresh();
+};
+window.deleteMetric = async id => {
+  if (!confirm('Zmazať cieľ?')) return;
+  await guard(sb.from('metric_goals').delete().eq('id', id), 'Zmazané');
+  await refresh();
+};
+window.openMetricModal = () => {
+  openModal(`<h3>Merateľný cieľ</h3>
+    <form id="f-mg">
+      <label>Názov <input name="name" required autofocus placeholder="napr. Reálne rozhovory PULI"></label>
+      <label>Cieľ (číslo) <input name="target" type="number" min="1" step="1" required placeholder="10"></label>
+      <label>Jednotka <input name="unit" placeholder="napr. rozhovorov (voliteľné)"></label>
+      <label>Počítať <select name="source">
+        <option value="manual">Ručne (+1 tlačidlo)</option>
+        <option value="workouts">Automaticky z tréningov</option>
+      </select></label>
+      <label>Štart <input name="start" type="date" value="${todayISO()}" required></label>
+      <label>Termín <input name="deadline" type="date" required></label>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">Zrušiť</button>
+        <button type="submit" class="btn btn-primary">Uložiť</button>
+      </div>
+    </form>`);
+  $('#f-mg').onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    if (f.get('deadline') < f.get('start')) { toast('Termín musí byť po štarte'); return; }
+    await guard(sb.from('metric_goals').insert({
+      user_id: S.user.id, name: f.get('name'), target: Number(f.get('target')),
+      unit: f.get('unit') || '', source: f.get('source'),
+      start_date: f.get('start'), deadline: f.get('deadline')
+    }), 'Cieľ pridaný');
+    closeModal(); await refresh();
+  };
+};
+
 /* ── OVERVIEW ── */
 function renderOverview() {
   const el = $('#view-overview');
@@ -547,13 +720,20 @@ function renderOverview() {
 
   const doneToday = S.habits.filter(h => S.habitLogs.some(l => l.habit_id === h.id && l.date === today));
   const journalToday = S.journal.find(j => j.date === today);
+  const comp30 = overallCompliance(30);
+  const months = monthlyNetWorth();
+  const momDelta = months.length > 1 ? months[months.length - 1].value - months[months.length - 2].value : null;
 
   el.innerHTML = `
+    ${commitmentCard()}
+
     <div class="card">
       <div class="card-head"><span class="card-title">Net worth</span>
         <span class="card-sub">${nwSeries.length ? 'k ' + fmtDate(nwSeries[nwSeries.length - 1].date) : ''}</span></div>
       <div class="hero-value">${fmtEur(nw)}</div>
-      ${nwPrev !== null ? `<div class="tile-delta ${nw - nwPrev >= 0 ? 'pos' : 'neg'}">${nw - nwPrev >= 0 ? '↑' : '↓'} ${fmtEur(Math.abs(nw - nwPrev))} od predchádzajúceho zápisu</div>` : ''}
+      ${momDelta !== null
+        ? `<div class="tile-delta ${momDelta >= 0 ? 'pos' : 'neg'}">${momDelta >= 0 ? '↑' : '↓'} ${fmtEur(Math.abs(momDelta))} oproti ${months[months.length - 2].label}</div>`
+        : (nwPrev !== null ? `<div class="tile-delta ${nw - nwPrev >= 0 ? 'pos' : 'neg'}">${nw - nwPrev >= 0 ? '↑' : '↓'} ${fmtEur(Math.abs(nw - nwPrev))} od predchádzajúceho zápisu</div>` : '')}
       <div class="chart-wrap mt" id="ov-nw-chart"></div>
     </div>
 
@@ -566,7 +746,7 @@ function renderOverview() {
         <div class="tile-delta">+${fmtEur(inc)} / −${fmtEur(exp)}</div></div>
       <div class="tile"><div class="tile-label">Pravidlá dnes</div>
         <div class="tile-value">${doneToday.length}/${S.habits.length}</div>
-        <div class="tile-delta">${doneToday.length === S.habits.length && S.habits.length ? '✓ všetko splnené' : 'ešte máš čo robiť'}</div></div>
+        <div class="tile-delta">${comp30 !== null ? `30 dní: <span class="${comp30 >= 80 ? 'pos' : comp30 >= 50 ? '' : 'neg'}">${comp30} %</span>` : 'ešte máš čo robiť'}</div></div>
       <div class="tile"><div class="tile-label">Žurnál dnes</div>
         <div class="tile-value">${journalToday ? '★'.repeat(journalToday.rating || 0) || '✓' : '—'}</div>
         <div class="tile-delta">${journalToday ? 'zapísané' : 'ešte nezapísané'}</div></div>
@@ -590,7 +770,9 @@ function renderOverview() {
       <div id="ov-goals"></div>
     </div>`;
 
-  const nwPts = nwSeries.slice(-30).map(p => ({ label: fmtDateShort(p.date), tipLabel: fmtDate(p.date), value: p.value }));
+  const nwPts = months.length >= 3
+    ? months.map(m => ({ label: m.label, tipLabel: m.label, value: m.value }))
+    : nwSeries.slice(-30).map(p => ({ label: fmtDateShort(p.date), tipLabel: fmtDate(p.date), value: p.value }));
   lineChart($('#ov-nw-chart'), nwPts, { empty: 'Pridaj účty a zapíš zostatky — graf sa vykreslí sám.' });
 
   renderTaskList($('#ov-tasks'), false);
@@ -621,12 +803,14 @@ function goalProgress(goal) {
 function renderGoalsMini(container) {
   const active = S.goals.filter(g => g.status === 'active');
   const finGoals = S.financeGoals.filter(g => !g.done);
-  if (!active.length && !finGoals.length) {
+  const metric = S.metricGoals.filter(g => !g.done || metricCurrent(g) < Number(g.target));
+  if (!active.length && !finGoals.length && !metric.length) {
     container.innerHTML = '<p class="muted small">Žiadne aktívne ciele.</p>';
     return;
   }
   const nw = netWorthNow();
   container.innerHTML =
+    metric.map(g => metricRow(g, false)).join('') +
     finGoals.map(g => {
       const cur = g.track_networth ? nw : Number(g.current_amount);
       const pct = Math.min(100, Math.round(cur / Number(g.target_amount) * 100));
@@ -666,12 +850,40 @@ function renderNetworthTab(el) {
   const series = netWorthSeries();
   const nw = series.length ? series[series.length - 1].value : 0;
   const balances = currentBalances();
+  const months = monthlyNetWorth();
+  const momDelta = months.length > 1 ? months[months.length - 1].value - months[months.length - 2].value : null;
+
+  // rozpad podľa kategórií majetku
+  const CAT_GROUPS = [
+    ['Hotovosť & banka', ['cash', 'bank']],
+    ['Krypto', ['crypto']],
+    ['Akcie & broker', ['stocks', 'broker']],
+    ['Nehnuteľnosti', ['real_estate']],
+    ['Iné', ['other']],
+    ['Dlh', ['debt']]
+  ];
+  const catTotals = CAT_GROUPS.map(([label, types]) => {
+    let sum = 0;
+    for (const a of S.accounts) if (types.includes(a.type) && balances[a.id]) sum += balances[a.id].balance;
+    return { label, sum, isDebt: types[0] === 'debt' };
+  }).filter(c => c.sum !== 0);
+  const maxCat = Math.max(1, ...catTotals.map(c => Math.abs(c.sum)));
+
   el.innerHTML = `
     <div class="card">
-      <div class="card-head"><span class="card-title">Vývoj net worth</span></div>
+      <div class="card-head"><span class="card-title">Vývoj net worth</span>
+        <span class="card-sub">${months.length > 1 ? 'mesačné snapshoty' : ''}</span></div>
       <div class="hero-value">${fmtEur(nw)}</div>
+      ${momDelta !== null ? `<div class="tile-delta ${momDelta >= 0 ? 'pos' : 'neg'}">${momDelta >= 0 ? '↑ +' : '↓ −'}${fmtEur(Math.abs(momDelta))} oproti ${months[months.length - 2].label}</div>` : ''}
       <div class="chart-wrap mt" id="nw-chart"></div>
     </div>
+    ${catTotals.length ? `<div class="card">
+      <div class="card-head"><span class="card-title">Zloženie majetku</span></div>
+      ${catTotals.map(c => `<div class="row"><div class="row-main">
+        <div class="row-title">${esc(c.label)}</div>
+        <div class="progress"><div style="width:${Math.round(Math.abs(c.sum) / maxCat * 100)}%${c.isDebt ? ';background:var(--bad)' : ''}"></div></div>
+      </div><span class="row-amount ${c.isDebt ? 'neg' : ''}">${fmtEur(c.sum)}</span></div>`).join('')}
+    </div>` : ''}
     <div class="card">
       <div class="card-head"><span class="card-title">Účty</span>
         <button class="btn btn-sm btn-primary" onclick="openAccountModal()">+ Účet</button></div>
@@ -680,15 +892,18 @@ function renderNetworthTab(el) {
         return `<div class="row">
           <div class="row-main">
             <div class="row-title">${esc(a.name)}</div>
-            <div class="row-sub">${({ cash: 'Hotovosť', bank: 'Banka', crypto: 'Krypto', broker: 'Broker', other: 'Iné' })[a.type] || a.type}${b ? ' · aktualizované ' + fmtDate(b.date) : ''}</div>
+            <div class="row-sub">${ACC_TYPES[a.type] || a.type}${b ? ' · aktualizované ' + fmtDate(b.date) : ''}</div>
           </div>
-          <span class="row-amount">${b ? fmtEur2(b.balance) : '—'}</span>
+          <span class="row-amount ${b && b.balance < 0 ? 'neg' : ''}">${b ? fmtEur2(b.balance) : '—'}</span>
           <button class="btn btn-sm" onclick="openBalanceModal('${a.id}')">Zapísať</button>
         </div>`;
-      }).join('') : '<p class="muted small">Pridaj si prvý účet (banka, hotovosť, krypto, broker…) a priebežne zapisuj zostatky — net worth sa počíta automaticky.</p>'}
+      }).join('') : '<p class="muted small">Pridaj si prvý účet (banka, hotovosť, krypto, akcie, nehnuteľnosť, dlh…) a priebežne zapisuj zostatky — net worth sa počíta automaticky.</p>'}
     </div>`;
-  const pts = series.slice(-60).map(p => ({ label: fmtDateShort(p.date), tipLabel: fmtDate(p.date), value: p.value }));
-  lineChart($('#nw-chart'), pts, { empty: 'Zapíš aspoň dva zostatky a uvidíš vývoj.' });
+
+  const pts = months.length >= 3
+    ? months.map(m => ({ label: m.label, tipLabel: m.label, value: m.value }))
+    : series.slice(-60).map(p => ({ label: fmtDateShort(p.date), tipLabel: fmtDate(p.date), value: p.value }));
+  lineChart($('#nw-chart'), pts, { empty: 'Zapíš aspoň jeden zostatok a graf sa vykreslí.' });
 }
 
 window.openAccountModal = () => {
@@ -698,8 +913,10 @@ window.openAccountModal = () => {
       <label>Typ <select name="type">
         <option value="bank">Banka</option><option value="cash">Hotovosť</option>
         <option value="crypto">Krypto</option><option value="broker">Broker</option>
+        <option value="stocks">Akcie / ETF</option><option value="real_estate">Nehnuteľnosť</option>
+        <option value="debt">Dlh (hypotéka, pôžička…)</option>
         <option value="other">Iné</option></select></label>
-      <label>Aktuálny zostatok (€) <input name="balance" type="number" step="0.01" required placeholder="0.00"></label>
+      <label>Aktuálny zostatok (€) — dlh zadaj kladne, uloží sa ako záväzok <input name="balance" type="number" step="0.01" required placeholder="0.00"></label>
       <div class="modal-actions">
         <button type="button" class="btn" onclick="closeModal()">Zrušiť</button>
         <button type="submit" class="btn btn-primary">Uložiť</button>
@@ -708,11 +925,14 @@ window.openAccountModal = () => {
   $('#f-acc').onsubmit = async e => {
     e.preventDefault();
     const f = new FormData(e.target);
+    const type = f.get('type');
+    let bal = Number(f.get('balance'));
+    if (type === 'debt') bal = -Math.abs(bal);
     const acc = await guard(sb.from('accounts').insert({
-      user_id: S.user.id, name: f.get('name'), type: f.get('type'), sort_order: S.accounts.length
+      user_id: S.user.id, name: f.get('name'), type, sort_order: S.accounts.length
     }).select().single());
     await guard(sb.from('account_snapshots').insert({
-      user_id: S.user.id, account_id: acc.id, date: todayISO(), balance: Number(f.get('balance'))
+      user_id: S.user.id, account_id: acc.id, date: todayISO(), balance: bal
     }), 'Účet pridaný');
     closeModal(); await refresh();
   };
@@ -732,8 +952,10 @@ window.openBalanceModal = accId => {
   $('#f-bal').onsubmit = async e => {
     e.preventDefault();
     const f = new FormData(e.target);
+    let bal = Number(f.get('balance'));
+    if (a.type === 'debt') bal = -Math.abs(bal);
     await guard(sb.from('account_snapshots').upsert({
-      user_id: S.user.id, account_id: accId, date: f.get('date'), balance: Number(f.get('balance'))
+      user_id: S.user.id, account_id: accId, date: f.get('date'), balance: bal
     }, { onConflict: 'account_id,date' }), 'Zostatok zapísaný');
     closeModal(); await refresh();
   };
@@ -979,8 +1201,14 @@ function renderLife() {
       <div id="life-habits">${S.habits.length ? '' : '<p class="muted small">Pravidlá, ktoré chceš dodržiavať každý deň — napr. „Max 2 obchody“, „Tréning“, „Bez alkoholu“. Streak ukazuje, koľko dní po sebe ich držíš.</p>'}</div>
     </div>
     <div class="card">
-      <div class="card-head"><span class="card-title">Posledných 7 dní</span></div>
+      <div class="card-head"><span class="card-title">Plnenie pravidiel</span>
+        <span class="card-sub" id="life-comp"></span></div>
       <div id="life-week"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-title">Merateľné ciele</span>
+        <button class="btn btn-sm btn-primary" onclick="openMetricModal()">+ Cieľ</button></div>
+      <div id="life-metrics"></div>
     </div>
     <div class="card">
       <div class="card-head"><span class="card-title">Ciele</span>
@@ -1012,23 +1240,32 @@ function renderLife() {
       return `<div class="habit-row">
         <button class="habit-check ${done ? 'done' : ''}" onclick="toggleHabit('${h.id}')">✓</button>
         <span class="habit-name ${done ? 'done' : ''}">${h.emoji ? esc(h.emoji) + ' ' : ''}${esc(h.name)}</span>
-        <span class="habit-streak">${st > 0 ? '🔥 ' + st + ' d' : ''}</span>
+        <span class="habit-streak">${st > 0 ? '🔥 ' + st : ''}</span>
         <button class="icon-btn" onclick="archiveHabit('${h.id}')" title="Odstrániť">✕</button>
       </div>`;
     }).join('');
+
+    const c7 = overallCompliance(7), c30 = overallCompliance(30);
+    $('#life-comp').innerHTML = `7 d: <b class="${c7 >= 80 ? 'pos' : c7 >= 50 ? '' : 'neg'}">${c7} %</b> · 30 d: <b class="${c30 >= 80 ? 'pos' : c30 >= 50 ? '' : 'neg'}">${c30} %</b>`;
 
     const days = [];
     for (let i = 6; i >= 0; i--) days.push(addDays(today, -i));
     $('#life-week').innerHTML = S.habits.map(h => {
       const set = new Set(S.habitLogs.filter(l => l.habit_id === h.id).map(l => l.date));
+      const comp = habitCompliance(h, 30);
       return `<div class="row">
-        <div class="row-main"><div class="row-title">${esc(h.name)}</div></div>
+        <div class="row-main"><div class="row-title">${esc(h.name)}</div>
+          <div class="row-sub">30 dní: ${comp.pct} % (${comp.num}/${comp.denom})</div></div>
         <div class="week-dots">${days.map(d => `<span class="week-dot ${set.has(d) ? 'on' : ''}" title="${fmtDate(d)}"></span>`).join('')}</div>
       </div>`;
     }).join('');
   } else {
     $('#life-week').innerHTML = '<p class="muted small">—</p>';
   }
+
+  $('#life-metrics').innerHTML = S.metricGoals.length
+    ? S.metricGoals.map(g => metricRow(g, true)).join('')
+    : '<p class="muted small">Ciele s číslom a termínom — napr. „48 tréningov do konca Q3" alebo „10 rozhovorov do 31.8.". Ukazujú, či si na pláne, nie len stav.</p>';
 
   const goals = S.goals.filter(g => g.status !== 'done');
   const doneGoals = S.goals.filter(g => g.status === 'done');

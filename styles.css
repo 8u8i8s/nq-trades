@@ -247,6 +247,22 @@ main {
 .step-title { font-size: 13.5px; color: var(--text2); }
 .step-title.done { color: var(--text3); text-decoration: line-through; }
 
+/* ── COMMITMENT ── */
+.commit-card { border-color: rgba(57,135,229,0.35); }
+.crit-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.crit-chip {
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text2);
+  border-radius: 20px;
+  padding: 7px 12px;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.crit-chip.met { background: var(--good-dim); border-color: var(--good); color: var(--good); }
+.crit-chip.failed { background: var(--bad-dim); border-color: var(--bad); color: var(--bad); }
+
 /* ── DAY CHIPS (výber dní v týždni) ── */
 .day-chips { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
 .day-chip {
