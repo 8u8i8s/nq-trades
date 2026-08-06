@@ -247,6 +247,37 @@ main {
 .step-title { font-size: 13.5px; color: var(--text2); }
 .step-title.done { color: var(--text3); text-decoration: line-through; }
 
+/* ── VÝZVA / PROMPT ── */
+.prompt-card { border-color: rgba(57,135,229,0.45); background: linear-gradient(var(--surface), var(--surface)) padding-box; }
+
+/* ── TÝŽDENNÝ REVIEW ── */
+.wk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.wk-stat {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  min-width: 0;
+}
+.wk-label { display: block; font-size: 10.5px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text3); }
+.wk-val { display: block; font-size: 16px; font-weight: 700; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── DISCIPLÍNA vs VÝSLEDKY ── */
+.disc-box {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  min-width: 0;
+}
+.disc-box.good { border-left-color: var(--good); }
+.disc-box.bad { border-left-color: var(--bad); }
+.disc-box .tile-delta { white-space: normal; overflow: visible; line-height: 1.4; }
+.disc-box .tile-value { font-size: clamp(16px, 5vw, 22px); }
+.disc-verdict { font-size: 13px; color: var(--text2); margin-top: 12px; line-height: 1.5; }
+.disc-verdict b { color: var(--text); }
+
 /* ── COMMITMENT ── */
 .commit-card { border-color: rgba(57,135,229,0.35); }
 .crit-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

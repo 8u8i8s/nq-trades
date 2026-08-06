@@ -345,7 +345,7 @@ const S = {
   accounts: [], snapshots: [], transactions: [], financeGoals: [], pnl: [],
   habits: [], habitLogs: [], goals: [], goalSteps: [], journal: [], fitness: [],
   tasks: [], taskLogs: [],
-  metricGoals: [], commitments: [], commitmentCriteria: [],
+  metricGoals: [], commitments: [], commitmentCriteria: [], reviews: [],
   loaded: false
 };
 
@@ -402,6 +402,78 @@ function overallCompliance(days) {
   let num = 0, denom = 0;
   for (const h of S.habits) { const c = habitCompliance(h, days); num += c.num; denom += c.denom; }
   return denom ? Math.round(num / denom * 100) : null;
+}
+
+/* compliance za konkrétny rozsah dní */
+function complianceRange(from, to) {
+  if (!S.habits.length) return null;
+  let num = 0, denom = 0;
+  for (const h of S.habits) {
+    const created = (h.created_at || from).slice(0, 10);
+    const start = created > from ? created : from;
+    const set = new Set(S.habitLogs.filter(l => l.habit_id === h.id).map(l => l.date));
+    for (let d = start; d <= to; d = addDays(d, 1)) { denom++; if (set.has(d)) num++; }
+  }
+  return denom ? Math.round(num / denom * 100) : null;
+}
+
+/* deň sa počíta ako "dodržaný", ak boli splnené všetky vtedy existujúce pravidlá */
+function rulesKeptOn(date) {
+  const active = S.habits.filter(h => (h.created_at || date).slice(0, 10) <= date);
+  if (!active.length) return null;
+  return active.every(h => S.habitLogs.some(l => l.habit_id === h.id && l.date === date));
+}
+
+/* disciplína vs výsledky: priemerný P&L v dni s dodržanými pravidlami vs bez */
+function disciplineStats() {
+  const kept = [], broke = [];
+  for (const p of S.pnl) {
+    const k = rulesKeptOn(p.date);
+    if (k === null) continue;
+    (k ? kept : broke).push(Number(p.amount));
+  }
+  const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  return {
+    keptN: kept.length, brokeN: broke.length,
+    keptAvg: avg(kept), brokeAvg: avg(broke),
+    keptSum: kept.reduce((x, y) => x + y, 0), brokeSum: broke.reduce((x, y) => x + y, 0)
+  };
+}
+
+function disciplineCard() {
+  const d = disciplineStats();
+  if (!S.habits.length) {
+    return `<div class="card"><div class="card-head"><span class="card-title">Disciplína vs výsledky</span></div>
+      <p class="muted small">Pridaj si denné pravidlá v sekcii Život a odškrtávaj ich — appka ti ukáže, koľko ťa stojí ich porušenie.</p></div>`;
+  }
+  if (!d.keptN || !d.brokeN) {
+    const need = !d.keptN ? 'deň s dodržanými pravidlami' : 'deň, keď pravidlá nedodržíš';
+    return `<div class="card"><div class="card-head"><span class="card-title">Disciplína vs výsledky</span></div>
+      <p class="muted small">Zbieram dáta — porovnanie sa ukáže, keď pribudne aspoň jeden ${need} so zapísaným P&L.
+      (Zatiaľ: ${d.keptN} dodržaných / ${d.brokeN} porušených dní s P&L.)</p></div>`;
+  }
+  const diff = d.keptAvg - d.brokeAvg;
+  return `<div class="card">
+    <div class="card-head"><span class="card-title">Disciplína vs výsledky</span>
+      <span class="card-sub">${d.keptN + d.brokeN} dní</span></div>
+    <div class="grid2">
+      <div class="disc-box good">
+        <div class="tile-label">Pravidlá dodržané</div>
+        <div class="tile-value ${d.keptAvg >= 0 ? 'pos' : 'neg'}">${signEur0(Math.round(d.keptAvg))}</div>
+        <div class="tile-delta">priemer · ${d.keptN} dní · spolu ${signEur0(d.keptSum)}</div>
+      </div>
+      <div class="disc-box bad">
+        <div class="tile-label">Pravidlá porušené</div>
+        <div class="tile-value ${d.brokeAvg >= 0 ? 'pos' : 'neg'}">${signEur0(Math.round(d.brokeAvg))}</div>
+        <div class="tile-delta">priemer · ${d.brokeN} dní · spolu ${signEur0(d.brokeSum)}</div>
+      </div>
+    </div>
+    <p class="disc-verdict ${diff >= 0 ? 'pos' : 'neg'}">
+      ${diff >= 0
+        ? `Dodržané pravidlá ti robia o <b>${fmtEur(Math.abs(Math.round(diff)))}</b> lepší priemerný deň.`
+        : `Zaujímavé — v dňoch bez pravidiel máš zatiaľ o <b>${fmtEur(Math.abs(Math.round(diff)))}</b> lepší priemer. Pri malej vzorke to býva náhoda; sleduj to ďalej.`}
+    </p>
+  </div>`;
 }
 
 /* merateľné ciele: aktuálny stav a tempo voči plánu */
@@ -548,7 +620,7 @@ function habitStreak(habitId) {
 async function loadAll() {
   const uid = S.user.id;
   const q = (t, sel, ord) => sb.from(t).select(sel || '*').order(ord || 'created_at', { ascending: false });
-  const [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit, tasks, tlog, mg, com, cc] = await Promise.all([
+  const [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit, tasks, tlog, mg, com, cc, rev] = await Promise.all([
     sb.from('accounts').select('*').eq('archived', false).order('sort_order'),
     sb.from('account_snapshots').select('*'),
     sb.from('transactions').select('*').order('date', { ascending: false }).limit(400),
@@ -564,7 +636,8 @@ async function loadAll() {
     sb.from('task_logs').select('*').gte('date', addDays(todayISO(), -30)),
     sb.from('metric_goals').select('*').order('created_at'),
     sb.from('commitments').select('*').eq('active', true).order('created_at'),
-    sb.from('commitment_criteria').select('*').order('sort_order')
+    sb.from('commitment_criteria').select('*').order('sort_order'),
+    sb.from('weekly_reviews').select('*').order('week_start', { ascending: false }).limit(30)
   ]);
   for (const r of [acc, snap, tx, fg, pnl, hab, hlog, goals, steps, jour, fit]) {
     if (r.error) { console.error(r.error); toast('Chyba načítania: ' + r.error.message); }
@@ -576,6 +649,8 @@ async function loadAll() {
   S.metricGoals = mg.error ? [] : (mg.data || []);
   S.commitments = com.error ? [] : (com.data || []);
   S.commitmentCriteria = cc.error ? [] : (cc.data || []);
+  S.reviews = rev.error ? [] : (rev.data || []);
+  S.reviewsReady = !rev.error;
   S.accounts = acc.data || []; S.snapshots = snap.data || []; S.transactions = tx.data || [];
   S.financeGoals = fg.data || []; S.pnl = pnl.data || []; S.habits = hab.data || [];
   S.habitLogs = hlog.data || []; S.goals = goals.data || []; S.goalSteps = steps.data || [];
@@ -601,6 +676,77 @@ function render() {
   ({ overview: renderOverview, finance: renderFinance, life: renderLife, journal: renderJournal, fitness: renderFitness })[currentView]();
 }
 async function refresh() { await loadAll(); render(); }
+
+/* ── MESAČNÝ ZÁPIS ZOSTATKOV ── */
+function staleAccounts() {
+  const ym = todayISO().slice(0, 7);
+  const byAcc = {};
+  for (const s of S.snapshots) {
+    if (!byAcc[s.account_id] || s.date > byAcc[s.account_id]) byAcc[s.account_id] = s.date;
+  }
+  return S.accounts.filter(a => !byAcc[a.id] || byAcc[a.id].slice(0, 7) < ym);
+}
+
+function balancePromptCard() {
+  const stale = staleAccounts();
+  const ym = todayISO().slice(0, 7);
+  if (!stale.length || localStorage.getItem('puli_bal_dismissed') === ym) return '';
+  const mName = MONTHS_SK[Number(ym.slice(5)) - 1];
+  return `<div class="card prompt-card">
+    <div class="card-head"><span class="card-title">📌 Zápis za ${mName}</span>
+      <button class="icon-btn" onclick="dismissBalancePrompt()" title="Skryť do konca mesiaca">✕</button></div>
+    <p class="small" style="color:var(--text2);line-height:1.5">
+      ${stale.length === S.accounts.length
+        ? 'Tento mesiac si ešte nezapísal zostatky.'
+        : `${stale.length} z ${S.accounts.length} účtov nemá tento mesiac zápis.`}
+      Bez pravidelných zápisov nemá net worth históriu — zaberie to minútu.
+    </p>
+    <button class="btn btn-primary mt" onclick="openBulkBalanceModal()">Zapísať všetky zostatky</button>
+  </div>`;
+}
+
+window.dismissBalancePrompt = () => {
+  localStorage.setItem('puli_bal_dismissed', todayISO().slice(0, 7));
+  render();
+};
+
+window.openBulkBalanceModal = () => {
+  const balances = currentBalances();
+  openModal(`<h3>Zostatky ku dňu</h3>
+    <form id="f-bulk">
+      <label>Dátum <input name="date" type="date" value="${todayISO()}" required></label>
+      ${S.accounts.map(a => {
+        const b = balances[a.id];
+        const val = b ? (a.type === 'debt' ? Math.abs(b.balance) : b.balance) : '';
+        return `<label>${esc(a.name)} <span class="muted small">· ${ACC_TYPES[a.type] || a.type}${a.type === 'debt' ? ' (zadaj kladne)' : ''}</span>
+          <input name="acc_${a.id}" type="number" step="0.01" value="${val}" placeholder="0.00">
+        </label>`;
+      }).join('')}
+      <p class="muted small">Prázdne pole = zostatok sa nezmení.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal()">Zrušiť</button>
+        <button type="submit" class="btn btn-primary">Uložiť všetko</button>
+      </div>
+    </form>`);
+  $('#f-bulk').onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    const date = f.get('date');
+    const rows = [];
+    for (const a of S.accounts) {
+      const raw = f.get('acc_' + a.id);
+      if (raw === null || raw === '') continue;
+      let bal = Number(raw);
+      if (a.type === 'debt') bal = -Math.abs(bal);
+      rows.push({ user_id: S.user.id, account_id: a.id, date, balance: bal });
+    }
+    if (!rows.length) { toast('Nič na uloženie'); return; }
+    await guard(sb.from('account_snapshots').upsert(rows, { onConflict: 'account_id,date' }),
+      rows.length + ' zostatkov zapísaných');
+    localStorage.removeItem('puli_bal_dismissed');
+    closeModal(); await refresh();
+  };
+};
 
 /* ── COMMITMENT (kill criteria countdown) ── */
 function commitmentCard() {
@@ -734,6 +880,7 @@ function renderOverview() {
   const momDelta = months.length > 1 ? months[months.length - 1].value - months[months.length - 2].value : null;
 
   el.innerHTML = `
+    ${balancePromptCard()}
     ${commitmentCard()}
 
     <div class="card">
@@ -895,7 +1042,10 @@ function renderNetworthTab(el) {
     </div>` : ''}
     <div class="card">
       <div class="card-head"><span class="card-title">Účty</span>
-        <button class="btn btn-sm btn-primary" onclick="openAccountModal()">+ Účet</button></div>
+        <span style="display:flex;gap:6px">
+          ${S.accounts.length ? '<button class="btn btn-sm" onclick="openBulkBalanceModal()">Zapísať všetky</button>' : ''}
+          <button class="btn btn-sm btn-primary" onclick="openAccountModal()">+ Účet</button>
+        </span></div>
       ${S.accounts.length ? S.accounts.map(a => {
         const b = balances[a.id];
         return `<div class="row">
@@ -1084,6 +1234,7 @@ function renderPnlTab(el) {
         <button class="btn btn-sm btn-primary" onclick="openPnlModal()">+ Zapísať deň</button></div>
       <div class="chart-wrap" id="pnl-chart"></div>
     </div>
+    ${disciplineCard()}
     <div class="card">
       <div class="card-head"><span class="card-title">História</span></div>
       ${S.pnl.slice(0, 20).map(p => `<div class="row">
@@ -1378,12 +1529,98 @@ window.deleteGoal = async id => {
   await refresh();
 };
 
+/* ── TÝŽDENNÝ REVIEW ── */
+const weekStart = iso => addDays(iso, -(isoWeekday(iso) - 1));
+
+function netWorthAt(dateISO) {
+  const series = netWorthSeries();
+  let v = null;
+  for (const p of series) { if (p.date <= dateISO) v = p.value; else break; }
+  return v;
+}
+
+function weekStats(from, to) {
+  const pnl = S.pnl.filter(p => p.date >= from && p.date <= to);
+  const pnlSum = pnl.reduce((a, p) => a + Number(p.amount), 0);
+  const nwFrom = netWorthAt(addDays(from, -1)), nwTo = netWorthAt(to);
+  const workouts = S.fitness.filter(f => f.workout && f.date >= from && f.date <= to).length;
+
+  // úlohy: jednorazové v týždni + opakované výskyty
+  let taskDone = 0, taskTotal = 0;
+  for (let d = from; d <= to && d <= todayISO(); d = addDays(d, 1)) {
+    const wd = isoWeekday(d);
+    for (const t of S.tasks) {
+      if (t.kind === 'once' && t.date === d) { taskTotal++; if (t.done) taskDone++; }
+      else if (t.kind === 'recurring' && (t.weekdays || []).includes(wd)) {
+        taskTotal++; if (S.taskLogs.some(l => l.task_id === t.id && l.date === d)) taskDone++;
+      }
+    }
+  }
+  const ratings = S.journal.filter(j => j.date >= from && j.date <= to && j.rating).map(j => j.rating);
+  return {
+    compliance: complianceRange(from, to > todayISO() ? todayISO() : to),
+    pnlSum, pnlDays: pnl.length,
+    nwDelta: (nwFrom !== null && nwTo !== null) ? nwTo - nwFrom : null,
+    workouts, taskDone, taskTotal,
+    avgRating: ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : null,
+    onPlan: S.metricGoals.filter(g => metricPace(g).diff >= 0).length, metricTotal: S.metricGoals.length
+  };
+}
+
+function weeklyReviewCard() {
+  const today = todayISO();
+  const from = weekStart(today), to = addDays(from, 6);
+  const s = weekStats(from, to);
+  const rev = S.reviews.find(r => r.week_start === from);
+  const isSunday = isoWeekday(today) === 7;
+
+  if (!S.reviewsReady) {
+    return `<div class="card"><div class="card-head"><span class="card-title">Týždenný review</span></div>
+      <p class="muted small">Potrebuje malé rozšírenie databázy — spusti SQL zo súboru
+      <b>supabase/migrations/20260806_weekly_reviews.sql</b>.</p></div>`;
+  }
+
+  const stat = (label, value, cls) => `<div class="wk-stat"><span class="wk-label">${label}</span><span class="wk-val ${cls || ''}">${value}</span></div>`;
+  return `<div class="card ${isSunday && !rev ? 'prompt-card' : ''}">
+    <div class="card-head"><span class="card-title">Týždenný review</span>
+      <span class="card-sub">${fmtDateShort(from)}–${fmtDateShort(to)}${rev ? ' · uložené' : ''}</span></div>
+    ${isSunday && !rev ? '<p class="small" style="color:var(--accent);margin-bottom:10px">Je nedeľa — 3 minúty a máš týždeň uzavretý.</p>' : ''}
+    <div class="wk-stats">
+      ${stat('Pravidlá', s.compliance !== null ? s.compliance + ' %' : '—', s.compliance >= 80 ? 'pos' : s.compliance !== null && s.compliance < 50 ? 'neg' : '')}
+      ${stat('P&L', s.pnlDays ? signEur0(s.pnlSum) : '—', s.pnlSum >= 0 ? 'pos' : 'neg')}
+      ${stat('Net worth', s.nwDelta !== null ? signEur0(s.nwDelta) : '—', s.nwDelta >= 0 ? 'pos' : 'neg')}
+      ${stat('Úlohy', s.taskTotal ? s.taskDone + '/' + s.taskTotal : '—')}
+      ${stat('Tréningy', String(s.workouts))}
+      ${stat('Ciele na pláne', s.metricTotal ? s.onPlan + '/' + s.metricTotal : '—')}
+      ${s.avgRating ? stat('Priemer dňa', s.avgRating + ' ★') : ''}
+    </div>
+    <label class="mt" style="display:block;font-size:12px;color:var(--text2)">Čo fungovalo
+      <textarea id="wk-worked" style="min-height:70px" placeholder="Čo ťa posunulo…">${rev ? esc(rev.worked || '') : ''}</textarea></label>
+    <label style="display:block;font-size:12px;color:var(--text2);margin-top:10px">Jedna vec na budúci týždeň
+      <textarea id="wk-next" style="min-height:70px" placeholder="Jedna konkrétna zmena…">${rev ? esc(rev.next_week || '') : ''}</textarea></label>
+    <button class="btn btn-primary mt" id="wk-save">Uložiť review</button>
+  </div>`;
+}
+
+function wireWeeklyReview() {
+  const btn = $('#wk-save');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    await guard(sb.from('weekly_reviews').upsert({
+      user_id: S.user.id, week_start: weekStart(todayISO()),
+      worked: $('#wk-worked').value || null, next_week: $('#wk-next').value || null
+    }, { onConflict: 'user_id,week_start' }), 'Review uložený ✓');
+    await refresh();
+  });
+}
+
 /* ── JOURNAL ── */
 function renderJournal() {
   const el = $('#view-journal');
   const today = todayISO();
   const entry = S.journal.find(j => j.date === today);
   el.innerHTML = `
+    ${weeklyReviewCard()}
     <div class="card">
       <div class="card-head"><span class="card-title">Dnešný zápis — ${fmtDate(today)}</span></div>
       <p class="small muted" style="margin-bottom:8px">Ako hodnotíš dnešný deň?</p>
@@ -1400,7 +1637,24 @@ function renderJournal() {
           ${j.entry ? `<div class="row-sub" style="white-space:pre-wrap">${esc(j.entry)}</div>` : ''}
         </div>
       </div>`).join('') || '<p class="muted small">Zatiaľ žiadne zápisy.</p>'}
+    </div>
+    ${S.reviews.filter(r => r.week_start !== weekStart(today)).length ? `<div class="card">
+      <div class="card-head"><span class="card-title">Staršie reviews</span></div>
+      ${S.reviews.filter(r => r.week_start !== weekStart(today)).slice(0, 8).map(r => `<div class="row">
+        <div class="row-main">
+          <div class="row-title">Týždeň ${fmtDateShort(r.week_start)}–${fmtDateShort(addDays(r.week_start, 6))}</div>
+          ${r.worked ? `<div class="row-sub" style="white-space:pre-wrap">✓ ${esc(r.worked)}</div>` : ''}
+          ${r.next_week ? `<div class="row-sub" style="white-space:pre-wrap">→ ${esc(r.next_week)}</div>` : ''}
+        </div>
+      </div>`).join('')}
+    </div>` : ''}
+    <div class="card">
+      <div class="card-head"><span class="card-title">Dáta a záloha</span></div>
+      <p class="muted small">Stiahne všetky tvoje dáta ako JSON — účty, zostatky, transakcie, pravidlá, ciele, úlohy, žurnál aj reviews.</p>
+      <button class="btn mt" onclick="exportData()">⬇︎ Stiahnuť zálohu (JSON)</button>
     </div>`;
+
+  wireWeeklyReview();
 
   let rating = entry ? entry.rating : 0;
   $$('#j-stars .star').forEach(s => s.addEventListener('click', () => {
@@ -1499,6 +1753,30 @@ window.deleteFitness = async id => {
   if (!confirm('Zmazať záznam?')) return;
   await guard(sb.from('fitness_logs').delete().eq('id', id), 'Zmazané');
   await refresh();
+};
+
+/* ── EXPORT ── */
+window.exportData = () => {
+  const payload = {
+    app: 'PULI LIFE', exported_at: new Date().toISOString(), user: S.user.email,
+    accounts: S.accounts, account_snapshots: S.snapshots, transactions: S.transactions,
+    finance_goals: S.financeGoals, daily_pnl: S.pnl,
+    habits: S.habits, habit_logs: S.habitLogs,
+    goals: S.goals, goal_steps: S.goalSteps,
+    tasks: S.tasks, task_logs: S.taskLogs,
+    metric_goals: S.metricGoals, commitments: S.commitments, commitment_criteria: S.commitmentCriteria,
+    journal: S.journal, weekly_reviews: S.reviews, fitness_logs: S.fitness
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'puli-life-zaloha-' + todayISO() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  toast('Záloha stiahnutá');
 };
 
 window.showView = showView;
