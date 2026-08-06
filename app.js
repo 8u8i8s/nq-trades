@@ -51,10 +51,14 @@ const $$ = (s, el) => [...(el || document).querySelectorAll(s)];
 
 const EUR = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
 const EUR2 = new Intl.NumberFormat('sk-SK', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const fmtEur = v => EUR.format(v);
-const fmtEur2 = v => EUR2.format(v);
-const signEur = v => (v > 0 ? '+' : '') + EUR2.format(v);
-const signEur0 = v => (v > 0 ? '+' : '') + EUR.format(v);
+
+/* ── privacy režim: po otvorení sú sumy skryté ── */
+let PRIVATE = true;
+const MASK = '••••';
+const fmtEur = v => PRIVATE ? MASK : EUR.format(v);
+const fmtEur2 = v => PRIVATE ? MASK : EUR2.format(v);
+const signEur = v => PRIVATE ? MASK : (v > 0 ? '+' : '') + EUR2.format(v);
+const signEur0 = v => PRIVATE ? MASK : (v > 0 ? '+' : '') + EUR.format(v);
 
 const todayISO = () => {
   const d = new Date();
@@ -124,12 +128,14 @@ function niceTicks(min, max, n) {
   for (let v = lo; v <= hi + step * 0.001; v += step) ticks.push(Math.round(v * 100) / 100);
   return { lo, hi, ticks };
 }
-const fmtAxis = v => {
+const fmtAxisRaw = v => {
   const a = Math.abs(v);
   if (a >= 1000000) return (v / 1000000).toFixed(1).replace('.0', '') + 'M';
   if (a >= 1000) return (v / 1000).toFixed(1).replace('.0', '') + 'k';
   return String(Math.round(v * 100) / 100);
 };
+/* pri peňažných grafoch v privacy režime skryjeme popisy osi — tvar krivky zostáva */
+const axisFmt = opts => (opts && opts.money === false) || !PRIVATE ? fmtAxisRaw : () => '•••';
 
 /* line chart: points = [{label, value}] */
 function lineChart(container, points, opts = {}) {
@@ -144,6 +150,7 @@ function lineChart(container, points, opts = {}) {
     points = [{ ...points[0], label: '' }, points[0]];
     singlePoint = true;
   }
+  const AX = axisFmt(opts);
   const W = 640, H = 220, padL = 44, padR = 12, padT = 12, padB = 26;
   const vals = points.map(p => p.value);
   let minV = opts.zero ? Math.min(0, ...vals) : Math.min(...vals);
@@ -157,7 +164,7 @@ function lineChart(container, points, opts = {}) {
   let g = '';
   for (const t of ticks) {
     g += `<line x1="${padL}" y1="${Y(t)}" x2="${W - padR}" y2="${Y(t)}" stroke="${C.grid}" stroke-width="1"/>`;
-    g += `<text x="${padL - 8}" y="${Y(t) + 3.5}" text-anchor="end" font-size="10.5" fill="${C.muted}">${fmtAxis(t)}</text>`;
+    g += `<text x="${padL - 8}" y="${Y(t) + 3.5}" text-anchor="end" font-size="10.5" fill="${C.muted}">${AX(t)}</text>`;
   }
   const n = points.length;
   const labStep = Math.max(1, Math.ceil(n / 6));
@@ -211,6 +218,7 @@ function pnlBarChart(container, bars, opts = {}) {
     container.innerHTML = '<div class="chart-empty">' + (opts.empty || 'Zatiaľ žiadne dáta.') + '</div>';
     return;
   }
+  const AX = axisFmt(opts);
   const W = 640, H = 200, padL = 44, padR = 12, padT = 12, padB = 26;
   const vals = bars.map(b => b.value);
   const { lo, hi, ticks } = niceTicks(Math.min(0, ...vals), Math.max(0, ...vals), 4);
@@ -222,7 +230,7 @@ function pnlBarChart(container, bars, opts = {}) {
   let g = '';
   for (const t of ticks) {
     g += `<line x1="${padL}" y1="${Y(t)}" x2="${W - padR}" y2="${Y(t)}" stroke="${C.grid}" stroke-width="1"/>`;
-    g += `<text x="${padL - 8}" y="${Y(t) + 3.5}" text-anchor="end" font-size="10.5" fill="${C.muted}">${fmtAxis(t)}</text>`;
+    g += `<text x="${padL - 8}" y="${Y(t) + 3.5}" text-anchor="end" font-size="10.5" fill="${C.muted}">${AX(t)}</text>`;
   }
   let rects = '', xl = '';
   const labStep = Math.max(1, Math.ceil(n / 7));
@@ -255,6 +263,7 @@ function groupedBarChart(container, groups, opts = {}) {
     container.innerHTML = '<div class="chart-empty">' + (opts.empty || 'Zatiaľ žiadne dáta.') + '</div>';
     return;
   }
+  const AX = axisFmt(opts);
   const W = 640, H = 200, padL = 44, padR = 12, padT = 12, padB = 26;
   const vals = groups.flatMap(g2 => [g2.a, g2.b]);
   const { lo, hi, ticks } = niceTicks(0, Math.max(1, ...vals), 4);
@@ -266,7 +275,7 @@ function groupedBarChart(container, groups, opts = {}) {
   let g = '';
   for (const t of ticks) {
     g += `<line x1="${padL}" y1="${Y(t)}" x2="${W - padR}" y2="${Y(t)}" stroke="${C.grid}" stroke-width="1"/>`;
-    g += `<text x="${padL - 8}" y="${Y(t) + 3.5}" text-anchor="end" font-size="10.5" fill="${C.muted}">${fmtAxis(t)}</text>`;
+    g += `<text x="${padL - 8}" y="${Y(t) + 3.5}" text-anchor="end" font-size="10.5" fill="${C.muted}">${AX(t)}</text>`;
   }
   let rects = '', xl = '';
   const bar = (x, v, col) => {
@@ -1442,7 +1451,7 @@ function renderFitness() {
     </div>`;
 
   const pts = weights.slice(-40).map(w => ({ label: fmtDateShort(w.date), tipLabel: fmtDate(w.date), value: Number(w.weight) }));
-  lineChart($('#w-chart'), pts, { color: C.aqua, fmt: v => v.toFixed(1) + ' kg', empty: 'Zapíš aspoň dve váženia.' });
+  lineChart($('#w-chart'), pts, { color: C.aqua, money: false, fmt: v => v.toFixed(1) + ' kg', empty: 'Zapíš aspoň dve váženia.' });
 }
 
 window.openWeightModal = () => {
@@ -1521,6 +1530,27 @@ $('#auth-form').addEventListener('submit', async e => {
   msg.textContent = '';
 });
 
+/* ── privacy toggle ── */
+function syncPrivacyBtn() {
+  const b = $('#privacy-btn');
+  b.textContent = PRIVATE ? '👁' : '🙈';
+  b.title = PRIVATE ? 'Zobraziť sumy' : 'Skryť sumy';
+}
+$('#privacy-btn').addEventListener('click', () => {
+  PRIVATE = !PRIVATE;
+  syncPrivacyBtn();
+  if (S.loaded) render();
+  toast(PRIVATE ? 'Sumy skryté' : 'Sumy zobrazené');
+});
+/* keď appka ide do pozadia, sumy sa samy zamknú */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && !PRIVATE) {
+    PRIVATE = true;
+    syncPrivacyBtn();
+    if (S.loaded) render();
+  }
+});
+
 $('#logout-btn').addEventListener('click', async () => {
   if (!confirm('Odhlásiť sa?')) return;
   await sb.auth.signOut();
@@ -1537,6 +1567,8 @@ async function boot(session) {
   $('#app').classList.remove('hidden');
   const d = new Date();
   $('#today-label').textContent = d.getDate() + '. ' + MONTHS_SK[d.getMonth()].toLowerCase() + ' ' + d.getFullYear();
+  PRIVATE = true;
+  syncPrivacyBtn();
   $('#view-' + currentView).innerHTML = '<div class="loading">Načítavam…</div>';
   await loadAll();
   render();
