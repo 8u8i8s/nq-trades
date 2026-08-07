@@ -248,17 +248,17 @@ main {
 .step-title.done { color: var(--text3); text-decoration: line-through; }
 
 /* ── LIQUIDITY (hlavná metrika) ── */
-.liq-card { padding: 22px 20px; border-color: rgba(255,255,255,0.14); }
+.liq-card { padding: 18px; border-color: rgba(255,255,255,0.14); }
 .liq-label {
   font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--text3);
 }
 .liq-hero {
-  font-size: clamp(38px, 13vw, 56px);
+  font-size: clamp(28px, 8.6vw, 38px);
   font-weight: 800;
-  line-height: 1.05;
-  letter-spacing: -0.02em;
-  margin-top: 6px;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  margin-top: 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .liq-hero.neg { color: var(--bad); }
@@ -300,7 +300,7 @@ main {
   border-radius: 6px;
 }
 .sk-label { height: 11px; width: 84px; margin-bottom: 12px; }
-.sk-hero { height: 46px; width: 62%; margin-bottom: 12px; }
+.sk-hero { height: 36px; width: 58%; margin-bottom: 12px; }
 .sk-line { height: 12px; width: 45%; }
 .sk-spark { height: 44px; width: 100%; margin-top: 16px; border-radius: 8px; }
 @keyframes sk-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
