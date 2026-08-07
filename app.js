@@ -346,7 +346,10 @@ const S = {
   habits: [], habitLogs: [], goals: [], goalSteps: [], journal: [], fitness: [],
   tasks: [], taskLogs: [],
   metricGoals: [], commitments: [], commitmentCriteria: [], reviews: [],
-  loaded: false
+  loaded: false,
+  // likvidita (číta sa z views, načítava sa prednostne pred zvyškom)
+  liq: null, liqAccounts: [], liqTrend: [], nwView: null,
+  liqState: 'loading', liqError: null
 };
 
 const dayDiff = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 86400000);
@@ -617,6 +620,30 @@ function habitStreak(habitId) {
 }
 
 /* ══ DATA LOADING ══ */
+/* likvidita ide zvlášť a ako prvá — hlavné číslo má byť na obrazovke hneď */
+async function loadLiquidity() {
+  S.liqState = 'loading';
+  try {
+    const [l, la, lt, nw] = await Promise.all([
+      sb.from('v_liquidity').select('*').maybeSingle(),
+      sb.from('v_liquidity_accounts').select('*'),
+      sb.from('v_liquidity_trend').select('*').order('date', { ascending: true }),
+      sb.from('v_net_worth').select('*').maybeSingle()
+    ]);
+    if (l.error) throw l.error;
+    S.liq = l.data || null;                                   // môže byť null = žiadne zostatky
+    S.liqAccounts = la.error ? [] : (la.data || []);
+    S.liqTrend = lt.error ? [] : (lt.data || []);
+    S.nwView = nw.error ? null : (nw.data || null);
+    S.liqState = 'ready';
+  } catch (e) {
+    console.error(e);
+    S.liqError = e.message || 'Nepodarilo sa načítať';
+    S.liqState = 'error';
+  }
+}
+window.retryLiquidity = async () => { S.liqState = 'loading'; renderOverview(); await loadLiquidity(); renderOverview(); };
+
 async function loadAll() {
   const uid = S.user.id;
   const q = (t, sel, ord) => sb.from(t).select(sel || '*').order(ord || 'created_at', { ascending: false });
@@ -675,7 +702,118 @@ function render() {
   if (!S.loaded) return;
   ({ overview: renderOverview, finance: renderFinance, life: renderLife, journal: renderJournal, fitness: renderFitness })[currentView]();
 }
-async function refresh() { await loadAll(); render(); }
+async function refresh() { await Promise.all([loadLiquidity(), loadAll()]); render(); }
+
+/* ── SPARKLINE (rovnaká SVG „knižnica" ako ostatné grafy) ── */
+function sparklineSVG(values, color) {
+  if (!values || values.length < 2) return '';
+  const W = 240, H = 48, pad = 4;
+  const min = Math.min(...values), max = Math.max(...values);
+  const span = (max - min) || Math.max(1, Math.abs(max) * 0.05);
+  const X = i => pad + (i / (values.length - 1)) * (W - pad * 2);
+  const Y = v => pad + (1 - (v - min) / span) * (H - pad * 2);
+  const path = values.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1)).join(' ');
+  const area = `${path} L ${X(values.length - 1).toFixed(1)} ${H - pad} L ${X(0).toFixed(1)} ${H - pad} Z`;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${area}" fill="${color}" opacity="0.12"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <circle cx="${X(values.length - 1).toFixed(1)}" cy="${Y(values[values.length - 1]).toFixed(1)}" r="2.8" fill="${color}"/>
+  </svg>`;
+}
+
+/* ── LIQUIDITY CARD — hlavná metrika, úplne hore ── */
+let liqExpanded = false;
+window.toggleLiqAccounts = () => { liqExpanded = !liqExpanded; renderOverview(); };
+
+function liquidityCard() {
+  if (S.liqState === 'loading') {
+    return `<div class="card liq-card">
+      <div class="sk sk-label"></div>
+      <div class="sk sk-hero"></div>
+      <div class="sk sk-line"></div>
+      <div class="sk sk-spark"></div>
+    </div>`;
+  }
+  if (S.liqState === 'error') {
+    return `<div class="card liq-card">
+      <div class="liq-label">Dostupné</div>
+      <div class="liq-hero neg">—</div>
+      <p class="small" style="color:var(--bad);margin-top:6px">Dáta sa nepodarilo načítať.${S.liqError ? ' ' + esc(S.liqError) : ''}</p>
+      <button class="btn mt" onclick="retryLiquidity()">Skúsiť znova</button>
+    </div>`;
+  }
+
+  const d = S.liq;
+  const liquidity = Number(d?.liquidity ?? 0);
+  const cash = Number(d?.cash_available ?? 0);
+  const overdraft = Number(d?.overdraft ?? 0);
+  const accountsCount = Number(d?.accounts_count ?? 0);
+  const asOf = d?.as_of || null;
+  const empty = !d;
+
+  const color = liquidity < 0 ? C.bad : C.blue;
+  const trend = S.liqTrend.slice(-12).map(t => Number(t.liquidity ?? 0));
+  const trendDelta = trend.length > 1 ? trend[trend.length - 1] - trend[0] : null;
+
+  const accounts = [...S.liqAccounts].sort((a, b) => Number(b.balance) - Number(a.balance));
+
+  return `<div class="card liq-card">
+    <div class="liq-label">Dostupné</div>
+    <div class="liq-hero ${liquidity < 0 ? 'neg' : ''}">${fmtEur(liquidity)}</div>
+    <div class="liq-sub">
+      ${empty
+        ? '<span class="muted">Zatiaľ žiadne zostatky</span>'
+        : `${asOf ? 'k ' + fmtDate(asOf) : ''}${accountsCount ? ' · ' + accountsCount + ' ' + (accountsCount === 1 ? 'účet' : accountsCount < 5 ? 'účty' : 'účtov') : ''}`}
+    </div>
+
+    ${!empty && overdraft < 0 ? `<div class="liq-split">
+      <span>Kladné zostatky <b>${fmtEur(cash)}</b></span>
+      <span class="neg">V mínuse <b>${fmtEur(Math.abs(overdraft))}</b></span>
+    </div>` : ''}
+
+    ${trend.length > 1 ? `<div class="liq-spark-wrap">
+      ${sparklineSVG(trend, color)}
+      ${trendDelta !== null ? `<span class="liq-trend ${trendDelta >= 0 ? 'pos' : 'neg'}">${trendDelta >= 0 ? '↑' : '↓'} ${fmtEur(Math.abs(trendDelta))} <span class="muted">za ${trend.length} zápisov</span></span>` : ''}
+    </div>` : ''}
+
+    ${accounts.length ? `
+      <button class="liq-toggle" onclick="toggleLiqAccounts()" aria-expanded="${liqExpanded}">
+        <span>Rozpad podľa účtov</span><span class="liq-caret ${liqExpanded ? 'open' : ''}">▾</span>
+      </button>
+      ${liqExpanded ? `<div class="liq-accounts">${accounts.map(a => `
+        <div class="row">
+          <div class="row-main">
+            <div class="row-title">${esc(a.account_name)}</div>
+            <div class="row-sub">${ACC_TYPES[a.account_type] || esc(a.account_type)}${a.as_of ? ' · ' + fmtDate(a.as_of) : ''}</div>
+          </div>
+          <span class="row-amount ${Number(a.balance) < 0 ? 'neg' : ''}">${fmtEur2(Number(a.balance ?? 0))}</span>
+        </div>`).join('')}</div>` : ''}
+    ` : ''}
+  </div>`;
+}
+
+/* ── NET WORTH — sekundárna, menšia karta ── */
+function netWorthMiniCard() {
+  const months = monthlyNetWorth();
+  const nwv = S.nwView;
+  const nw = nwv ? Number(nwv.net_worth ?? 0) : netWorthNow();
+  const assets = nwv ? Number(nwv.assets ?? 0) : null;
+  const debt = nwv ? Number(nwv.debt ?? 0) : null;
+  const momDelta = months.length > 1 ? months[months.length - 1].value - months[months.length - 2].value : null;
+
+  return `<div class="card nw-mini" onclick="showView('finance')">
+    <div class="nw-mini-row">
+      <div>
+        <div class="tile-label">Net worth</div>
+        <div class="nw-mini-value">${fmtEur(nw)}</div>
+      </div>
+      <div class="nw-mini-meta">
+        ${momDelta !== null ? `<span class="${momDelta >= 0 ? 'pos' : 'neg'}">${momDelta >= 0 ? '↑' : '↓'} ${fmtEur(Math.abs(momDelta))}</span><br>` : ''}
+        ${assets !== null && debt ? `<span class="muted small">aktíva ${fmtEur(assets)} · dlh ${fmtEur(debt)}</span>` : '<span class="muted small">detail →</span>'}
+      </div>
+    </div>
+  </div>`;
+}
 
 /* ── MESAČNÝ ZÁPIS ZOSTATKOV ── */
 function staleAccounts() {
@@ -860,11 +998,17 @@ window.openMetricModal = () => {
 /* ── OVERVIEW ── */
 function renderOverview() {
   const el = $('#view-overview');
-  const today = todayISO();
-  const nwSeries = netWorthSeries();
-  const nw = nwSeries.length ? nwSeries[nwSeries.length - 1].value : 0;
-  const nwPrev = nwSeries.length > 1 ? nwSeries[nwSeries.length - 2].value : null;
 
+  // prvý paint: likvidita hneď, zvyšok ako skeleton
+  if (!S.loaded) {
+    el.innerHTML = liquidityCard() +
+      '<div class="card"><div class="sk sk-label"></div><div class="sk sk-line"></div></div>' +
+      '<div class="tiles">' + '<div class="tile"><div class="sk sk-label"></div><div class="sk sk-line"></div></div>'.repeat(4) + '</div>' +
+      '<div class="card"><div class="sk sk-label"></div><div class="sk sk-line"></div><div class="sk sk-line"></div></div>';
+    return;
+  }
+
+  const today = todayISO();
   const ym = today.slice(0, 7);
   const monthTx = S.transactions.filter(t => t.date.startsWith(ym));
   const inc = monthTx.filter(t => t.type === 'income').reduce((a, t) => a + Number(t.amount), 0);
@@ -876,22 +1020,11 @@ function renderOverview() {
   const doneToday = S.habits.filter(h => S.habitLogs.some(l => l.habit_id === h.id && l.date === today));
   const journalToday = S.journal.find(j => j.date === today);
   const comp30 = overallCompliance(30);
-  const months = monthlyNetWorth();
-  const momDelta = months.length > 1 ? months[months.length - 1].value - months[months.length - 2].value : null;
 
   el.innerHTML = `
+    ${liquidityCard()}
     ${balancePromptCard()}
     ${commitmentCard()}
-
-    <div class="card">
-      <div class="card-head"><span class="card-title">Net worth</span>
-        <span class="card-sub">${nwSeries.length ? 'k ' + fmtDate(nwSeries[nwSeries.length - 1].date) : ''}</span></div>
-      <div class="hero-value">${fmtEur(nw)}</div>
-      ${momDelta !== null
-        ? `<div class="tile-delta ${momDelta >= 0 ? 'pos' : 'neg'}">${momDelta >= 0 ? '↑' : '↓'} ${fmtEur(Math.abs(momDelta))} oproti ${months[months.length - 2].label}</div>`
-        : (nwPrev !== null ? `<div class="tile-delta ${nw - nwPrev >= 0 ? 'pos' : 'neg'}">${nw - nwPrev >= 0 ? '↑' : '↓'} ${fmtEur(Math.abs(nw - nwPrev))} od predchádzajúceho zápisu</div>` : '')}
-      <div class="chart-wrap mt" id="ov-nw-chart"></div>
-    </div>
 
     <div class="tiles">
       <div class="tile"><div class="tile-label">Dnešný P&L</div>
@@ -924,12 +1057,9 @@ function renderOverview() {
       <div class="card-head"><span class="card-title">Ciele</span>
         <button class="btn btn-sm" onclick="showView('life')">Detail</button></div>
       <div id="ov-goals"></div>
-    </div>`;
+    </div>
 
-  const nwPts = months.length >= 3
-    ? months.map(m => ({ label: m.label, tipLabel: m.label, value: m.value }))
-    : nwSeries.slice(-30).map(p => ({ label: fmtDateShort(p.date), tipLabel: fmtDate(p.date), value: p.value }));
-  lineChart($('#ov-nw-chart'), nwPts, { empty: 'Pridaj účty a zapíš zostatky — graf sa vykreslí sám.' });
+    ${netWorthMiniCard()}`;
 
   renderTaskList($('#ov-tasks'), false);
   renderHabitList($('#ov-habits'));
@@ -1847,7 +1977,13 @@ async function boot(session) {
   $('#today-label').textContent = d.getDate() + '. ' + MONTHS_SK[d.getMonth()].toLowerCase() + ' ' + d.getFullYear();
   PRIVATE = true;
   syncPrivacyBtn();
-  $('#view-' + currentView).innerHTML = '<div class="loading">Načítavam…</div>';
+  // 1. fáza — hlavné číslo (likvidita) na obrazovku čo najskôr
+  S.loaded = false;
+  S.liqState = 'loading';
+  renderOverview();
+  await loadLiquidity();
+  renderOverview();
+  // 2. fáza — zvyšok dashboardu
   await loadAll();
   render();
 }
