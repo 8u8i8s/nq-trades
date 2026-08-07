@@ -247,6 +247,65 @@ main {
 .step-title { font-size: 13.5px; color: var(--text2); }
 .step-title.done { color: var(--text3); text-decoration: line-through; }
 
+/* ── LIQUIDITY (hlavná metrika) ── */
+.liq-card { padding: 22px 20px; border-color: rgba(255,255,255,0.14); }
+.liq-label {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text3);
+}
+.liq-hero {
+  font-size: clamp(38px, 13vw, 56px);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin-top: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.liq-hero.neg { color: var(--bad); }
+.liq-sub { font-size: 12.5px; color: var(--text3); margin-top: 6px; }
+.liq-split {
+  display: flex; flex-wrap: wrap; gap: 6px 16px;
+  font-size: 12.5px; color: var(--text2);
+  margin-top: 10px;
+}
+.liq-split b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.liq-spark-wrap { margin-top: 14px; }
+.spark { display: block; width: 100%; height: 44px; }
+.liq-trend { display: block; font-size: 12px; font-weight: 600; margin-top: 4px; }
+
+.liq-toggle {
+  width: 100%; margin-top: 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: none; border: none; border-top: 1px solid var(--grid);
+  padding: 12px 0 0;
+  color: var(--text2); font-family: var(--sans); font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.liq-caret { color: var(--text3); transition: transform .2s; }
+.liq-caret.open { transform: rotate(180deg); }
+.liq-accounts { margin-top: 2px; }
+
+/* ── NET WORTH — sekundárna karta ── */
+.nw-mini { cursor: pointer; padding: 14px 16px; }
+.nw-mini-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nw-mini-value { font-size: 19px; font-weight: 700; margin-top: 3px; }
+.nw-mini-meta { text-align: right; font-size: 12px; font-weight: 600; min-width: 0; }
+
+/* ── SKELETON ── */
+.sk {
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+.sk-label { height: 11px; width: 84px; margin-bottom: 12px; }
+.sk-hero { height: 46px; width: 62%; margin-bottom: 12px; }
+.sk-line { height: 12px; width: 45%; }
+.sk-spark { height: 44px; width: 100%; margin-top: 16px; border-radius: 8px; }
+@keyframes sk-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
 /* ── VÝZVA / PROMPT ── */
 .prompt-card { border-color: rgba(57,135,229,0.45); background: linear-gradient(var(--surface), var(--surface)) padding-box; }
 
